@@ -1,5 +1,9 @@
 # 炎龙骑士团II资源分析器 - Git忽略文件
 
+# C# 资源文件和编译输出
+*.resources
+FD2ResourcesViewer.Resource.resources
+
 # 输出目录
 output_images/
 test_output/
@@ -173,3 +177,6 @@ $RECYCLE.BIN/
 *.jpeg
 *.bmp
 *.gif
+colorpanel_test/colorpanel_analysis.txt
+deep_analysis.py
+fix_image_extraction.py
