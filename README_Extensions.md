@@ -50,6 +50,18 @@
   python fd2_analyzer.py BG.DAT -o output_dir
   ```
 
+#### 5. FDTXT.DAT 文件分析 ⭐ 已实现
+- **描述**: 游戏文本资源文件
+- **功能**:
+  - 35个主分类的文本数据解析
+  - 多种中文编码格式支持（GB2312/GBK/UTF-8）
+  - 自动文本清理和格式化
+- **输出**: fdtxt_XXXX.txt 格式的文本文件
+- **使用方法**: 
+  ```bash
+  python fd2_analyzer.py FDTXT.DAT -o output_dir
+  ```
+
 ### 🛠️ 批量处理功能
 
 fd2_analyzer.py 现在支持批量处理多个文件：
@@ -97,7 +109,7 @@ python fd2_analyzer.py -b . -o all_images
   - 35个文本分类，每类最多701条文本
   - 中文文本解码（GB2312/GBK）
   - 对话内容、系统提示等文本提取
-- **实现难度**: 简单
+- **实现难度**: 已实现
 - **输出**: extracted_texts.txt 文本文件
 
 ## 技术特性

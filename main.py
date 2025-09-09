@@ -51,14 +51,10 @@ class ColorPanel:
         
         for i in range(256):
             if self.colorPanelData and len(self.colorPanelData) >= (i*3 + 3):
-                # 注意：调色板数据可能是6位颜色值(0-63)，需要转换为8位(0-255)
+                # 注意：调色板数据是6位颜色值(0-63)，需要转换为8位(0-255)
                 red = min(255, self.colorPanelData[i*3] * 4)
                 green = min(255, self.colorPanelData[i*3 + 1] * 4)
                 blue = min(255, self.colorPanelData[i*3 + 2] * 4)
-                
-                # 如果颜色值异常，使用灰度替代
-                if red == green == blue and red in [4, 248]:
-                    red = green = blue = i  # 使用索引作为灰度值
             else:
                 # 默认灰度颜色
                 red = green = blue = i
@@ -81,9 +77,16 @@ class ColorPanel:
             return (0, 0, 0)
 
 class DataBlock:
-    def __init__(self, start, length):
-        self.startOffset = start
+    """数据块结构"""
+    def __init__(self, startOffset, length):
+        self.startOffset = startOffset
         self.length = length
+        
+    def __str__(self):
+        return f"DataBlock(startOffset={self.startOffset}, length={self.length})"
+    
+    def __repr__(self):
+        return self.__str__()
 
 class BMPMaker:
     def __init__(self):
@@ -126,15 +129,28 @@ class BMPMaker:
         self.BMPimage = Image.new('RGB', (width, height))
         num2 = startOffset + length - 1
         num = startOffset
-        num5 = 0
-        num6 = 0
+        num5 = 0  # x坐标
+        num6 = 0  # y坐标
         # print(f"makeBMP: width={width}, height={height}, startOffset={startOffset}, length={length}")
         while num <= num2:
-            if length > 10 and num % (length // 10) == 0:
-                pass  # 需补充进度条更新逻辑
+            # 检查坐标是否在图像范围内
+            if num6 >= height:
+                break  # 防止y坐标越界
+                
+            if num5 >= width:
+                num5 = 0
+                num6 += 1
+                # 再次检查y坐标
+                if num6 >= height:
+                    break  # 防止y坐标越界
             
             index = datablock[num]
-            self.BMPimage.putpixel((num5, num6), colorpanel.thisColor(index))
+            # 检查数据索引是否有效
+            if num < len(datablock):
+                self.BMPimage.putpixel((num5, num6), colorpanel.thisColor(index))
+            else:
+                # 数据不足，使用默认颜色
+                self.BMPimage.putpixel((num5, num6), (0, 0, 0))
             num5 += 1
             if num5 == width:
                 num5 = 0
@@ -365,13 +381,13 @@ class BMPMaker:
                 b = datablock[num2]
                 if b >= 192:
                     num5 = b - 192 + 1
-                if 128 <= b < 192:
+                elif 128 <= b < 192:
                     num6 = b - 128 + 1
-                if 64 <= b < 128:
+                elif 64 <= b < 128:
                     num7 = b - 64
                     num6 = 1
                     flag = True
-                if b <= 63:
+                elif b <= 63:
                     num6 = 1
                     num7 = b
                 
@@ -381,7 +397,12 @@ class BMPMaker:
                     num9 += 1
                     flag = False
             else:
-                for _ in range(num7 + 1):
+                # 修复循环逻辑，使其与C#版本完全一致
+                num10 = num7
+                num11 = 0
+                while True:
+                    if num11 > num10:
+                        break
                     if 64 <= b < 128:
                         num8 += 1
                     index = datablock[num2]
@@ -391,6 +412,7 @@ class BMPMaker:
                         num8 = 0
                         num9 += 1
                         flag = False
+                    num11 += 1
                 num6 -= 1
             num2 += 1
         
@@ -655,23 +677,13 @@ class Main:
             array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
-        num4 = len(array) - 2  # 1679
+        num4 = len(array) - 2
         num5 = 0
-        while num5 <= num4:  # 0 to 1679
+        while num5 <= num4:
             self.datablocksICON[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
-        # 最后一个数据块：使用文件结尾
+        # 处理最后一个数据块
         self.datablocksICON[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 1680
-        num8 = 0
-        while num8 <= 1679:
-            text = f"ID:{num8:05d}"
-            # ListBoxImages.Items.Add(text)  # UI操作占位
-            if num8 % 80 == 0:
-                pass  # 进度条更新占位
-            num8 += 1
     
     def AnalysisOtherSubs(self, subIndex):
         if subIndex in (1, 14):

@@ -11,6 +11,12 @@ all_images/
 simple_analysis/
 output/
 images/
+output_directory/
+output_images/
+output_images_test/
+output_images_test_2/
+output_*/
+*_output/
 
 # 数据源文件 - 游戏资源文件
 *.DAT
@@ -20,6 +26,7 @@ images/
 
 # C# 代码和相关文件
 resviewer_src/
+fd2resViewerSrc/
 *.cs
 *.csproj
 *.sln
@@ -32,6 +39,7 @@ debug_*.py
 simple_*.py
 *_test.py
 temp_*.py
+debug_*
 
 # Python 缓存文件
 __pycache__/
