@@ -205,6 +205,7 @@ class BMPMaker:
         num7 = 0
         num8 = 0
         num9 = 0
+        b = 0
         num10 = 0
         num11 = 0
         
@@ -212,29 +213,35 @@ class BMPMaker:
             if num4 % 200 == 0:
                 pass  # 需补充进度条更新逻辑
             
+            # 修复flag处理逻辑，使其与C#版本完全一致
             if num7 != 0:
                 num7 = 0
                 flag = True
             else:
                 flag = False
             
+            # 关键修复：flag会被num8的值覆盖
             flag = (num8 != 0)
+            
+            # 修复逻辑判断，使其与C#版本完全一致
+            # C#中的 if (unchecked(0 - (flag ? 1 : 0)) == 0) 等价于 if not flag:
             if not flag:
                 num7 = 0
                 num8 = 0
                 num9 = 0
-                b = datablock[num4]
-                if b >= 192:
-                    num7 = b - 192 + 1
-                elif 128 <= b < 192:
-                    num8 = b - 128 + 1
-                elif 64 <= b < 128:
-                    num9 = b - 64
-                    num8 = 1
-                    flag = True
-                elif b <= 63:
-                    num8 = 1
-                    num9 = b
+                if num4 < len(datablock):
+                    b = datablock[num4]
+                    if b >= 192:
+                        num7 = b - 192 + 1
+                    if 128 <= b < 192:
+                        num8 = b - 128 + 1
+                    if 64 <= b < 128:
+                        num9 = b - 64
+                        num8 = 1
+                        flag = True
+                    if b <= 63:
+                        num8 = 1
+                        num9 = b
                 
                 num10 += num7
                 if num10 >= width:
@@ -242,16 +249,25 @@ class BMPMaker:
                     num11 += 1
                     flag = False
             else:
-                for _ in range(num9):
+                # 修复循环逻辑，使其与C#版本完全一致
+                num12 = num9
+                num13 = 0
+                while True:
+                    if num13 > num12:
+                        break
                     if 64 <= b < 128:
                         num10 += 1
-                    index = datablock[num4]
-                    self.BMPimage.putpixel((num10, num11), colorpanel.thisColor(index))
-                    num10 += 1
+                    if num4 < len(datablock):
+                        index = datablock[num4]
+                        num7 = 1
+                        if 0 <= num10 < width and 0 <= num11 < height:
+                            self.BMPimage.putpixel((num10, num11), colorpanel.thisColor(index))
+                    num10 += num7
                     if num10 >= width:
                         num10 = 0
                         num11 += 1
                         flag = False
+                    num13 += 1
                 num8 -= 1
             num4 += 1
         

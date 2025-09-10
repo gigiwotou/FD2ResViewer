@@ -539,8 +539,8 @@ class FD2Analyzer(Main):
             # 检查数据块是否存在且有效
             if self.dataBlocksBG[i] is not None and hasattr(self.dataBlocksBG[i], 'length') and self.dataBlocksBG[i].length > 4:
                 try:
-                    image = self.bmp_maker.makeBMP(
-                        448, 448,  # 背景固定大小448x448
+                    # 使用makeBgBMP方法处理BG文件，从数据中读取宽度和高度
+                    image = self.bmp_maker.makeBgBMP(
                         self.fileDatas,
                         self.dataBlocksBG[i].startOffset,
                         self.dataBlocksBG[i].length,
@@ -559,7 +559,22 @@ class FD2Analyzer(Main):
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
         
-        print("FDOTHER分析完成")
+        # 使用AnalysisOTHER和AnalysisOtherSubs进行文件分析
+        self.AnalysisOTHER()
+        print(f'FDOTHER分析完成，共{len(self.datablocksOTHER)}个主分类')
+        
+        # 处理所有子索引
+        total_images = 0
+        for subIndex in range(len(self.datablocksOTHER)):
+            self.AnalysisOtherSubs(subIndex)
+            # 计算这个子索引生成的图像数量
+            if self.datablocksOTHERSubs:
+                image_count = len([block for block in self.datablocksOTHERSubs if block is not None])
+                print(f'  子索引{subIndex}: 处理{image_count}个资源')
+                self.AnalysisOtherSubsImage(subIndex)
+                total_images += image_count
+        
+        print(f'成功提取{total_images}个FDOTHER资源')
 
 def main():
     import argparse
