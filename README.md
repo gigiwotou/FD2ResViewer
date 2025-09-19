@@ -11,6 +11,8 @@
 - **DATO.DAT** - 人物表情资源（137个角色×4种表情）
 - **BG.DAT** - 战斗背景资源（56个战斗背景）
 - **FDTXT.DAT** - 游戏文本资源（35个主分类的文本数据）
+- **TAI.DAT** - 战斗动作图像资源（56个战斗动作）
+- **FIGANI.DAT** - 战斗动作序列资源（409个动作序列）
 
 ### 🚀 主要功能
 
@@ -46,9 +48,11 @@ python fd2_analyzer.py --help
 
 - FDOTHER: `fdother_[类型]_[主索引]_[子索引].png`
 - FDICON: `icon_[索引].png`
-- DATO: `face_[角色]_[表情].png`
+- DATO: `dato_[角色]_[表情].png`
 - BG: `bg_[索引].png`
 - FDTXT: `fdtxt_[主索引].txt`
+- TAI: `tai_[索引].png`
+- FIGANI: `figani_[动作序列]/frame_[帧索引].png`
 
 ## 技术特性
 
@@ -67,6 +71,9 @@ FD2ResViewer/
 ├── README.md           # 项目说明
 ├── README_Extensions.md # 功能扩展说明
 ├── .gitignore          # Git忽略文件
+├── parse_all.bat       # 解析所有支持文件类型的批处理脚本
+├── parse_batch.bat     # 批量处理data目录中所有文件的批处理脚本
+├── parse_*.bat         # 各种文件类型的解析批处理脚本
 └── 资源文件/
     ├── colorPanel      # 调色板1
     ├── colornew        # 调色板2
