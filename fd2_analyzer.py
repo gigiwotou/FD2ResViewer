@@ -274,165 +274,6 @@ class FD2Analyzer(Main):
             
         return text
 
-    def AnalysisTXT(self):
-        """分析FDTXT数据结构"""
-        array = [0] * 35
-        num = 6
-        while num <= 142:
-            index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            self.TXTsubBlockCount[num5] = int(struct.unpack('<h', self.fileDatas[array[num5]:array[num5]+2])[0] / 2)
-            num8 = self.TXTsubBlockCount[num5] - 1
-            array2 = [0] * (num8 + 1)
-            num9 = 0
-            while num9 <= num8:
-                array2[num9] = array[num5] + struct.unpack('<h', self.fileDatas[array[num5] + num9*2 : array[num5] + (num9+1)*2])[0]
-                num9 += 1
-
-            num11 = self.TXTsubBlockCount[num5] - 2
-            num9 = 0
-            while num9 <= num11:
-                # 确保不会越界
-                if num5 < len(self.datablocksTXT) and num9 < len(self.datablocksTXT[num5]):
-                    self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
-                num9 += 1
-            # 处理最后一个数据块
-            if num5 < len(self.datablocksTXT) and num9 < len(self.datablocksTXT[num5]):
-                self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
-            num5 += 1
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 34
-        num13 = 0
-        while num13 <= 33:
-            if num13 < len(self.TXTsubBlockCount):
-                num14 = self.TXTsubBlockCount[num13] - 1
-                num15 = 0
-                while num15 <= num14:
-                    text = f"ID:{num13:04d}-{num15:04d}"
-                    # ListBoxImages.Items.Add(text)  # UI操作占位
-                    num15 += 1
-            if num13 % 30 == 0:
-                pass  # 进度条更新占位
-            num13 += 1
-
-    def AnalysisDATO(self):
-        """分析DATO数据结构"""
-        array = [0] * 137
-        num = 6
-        while num <= 550:
-            index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            array2 = [0] * 4
-            num8 = 0
-            while num8 <= 3:
-                array2[num8] = array[num5] + struct.unpack('<I', self.fileDatas[array[num5] + num8*4 : array[num5] + (num8+1)*4])[0]
-                num8 += 1
-
-            num8 = 0
-            while num8 <= 2:
-                # 确保不会越界
-                if num5 < len(self.dataBlocksDATO) and num8 < len(self.dataBlocksDATO[num5]):
-                    self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array2[num8+1] - array2[num8])
-                num8 += 1
-            # 处理最后一个数据块
-            if num5 < len(self.dataBlocksDATO) and num8 < len(self.dataBlocksDATO[num5]):
-                self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array[num5+1] - array2[num8])
-            num5 += 1
-
-    def AnalysisBG(self):
-        """分析BG数据结构"""
-        array = [0] * 57
-        num = 6
-        while num <= 230:
-            index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            # 确保不会越界
-            if num5 < len(self.dataBlocksBG):
-                self.dataBlocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
-            num5 += 1
-        # 处理最后一个数据块
-        if num5 < len(self.dataBlocksBG):
-            self.dataBlocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
-
-    def AnalysisFIGANI(self):
-        """分析FIGANI数据结构"""
-        array = [0] * 409
-        num = 6
-        while num <= 1638:
-            index = int((num - 6) / 4)
-            # 确保索引在有效范围内
-            if index < len(array):
-                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4 and num5 < len(self.FIGANIsubBlockCount):
-            # 确保数组索引在有效范围内
-            if array[num5] < len(self.fileDatas):
-                self.FIGANIsubBlockCount[num5] = self.fileDatas[array[num5]]
-            else:
-                self.FIGANIsubBlockCount[num5] = 0
-            
-            num8 = self.FIGANIsubBlockCount[num5] - 1
-            # 确保数组大小合理
-            if num8 >= 0 and num8 < 1000:  # 设置合理的上限
-                array2 = [0] * (num8 + 1)
-                num9 = 0
-                while num9 <= num8 and (array[num5] + 8 + num9*4 + 4) <= len(self.fileDatas):
-                    # 确保数据读取不会越界
-                    start_pos = array[num5] + 8 + num9*4
-                    end_pos = array[num5] + 12 + num9*4
-                    if end_pos <= len(self.fileDatas):
-                        array2[num9] = array[num5] + struct.unpack('<I', self.fileDatas[start_pos:end_pos])[0]
-                    else:
-                        array2[num9] = array[num5]
-                    num9 += 1
-
-                num11 = self.FIGANIsubBlockCount[num5] - 2
-                num9 = 0
-                while num9 <= num11 and num5 < len(self.dataBlocksFIGANI) and num9 < len(self.dataBlocksFIGANI[num5]):
-                    # 确保不会越界
-                    if (num9 + 1) < len(array2) and (array[num5 + 1] - array2[num9]) > 0:
-                        self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
-                    elif num9 < len(array2):
-                        # 处理最后一个数据块
-                        if (num5 + 1) < len(array):
-                            self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
-                    num9 += 1
-            num5 += 1
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 408
-        num13 = 0
-        while num13 <= 407 and num13 < len(self.FIGANIsubBlockCount):
-            if self.FIGANIsubBlockCount[num13] > 0:
-                num14 = self.FIGANIsubBlockCount[num13] - 1
-                num15 = 0
-                while num15 <= num14 and num13 < len(self.dataBlocksFIGANI) and num15 < len(self.dataBlocksFIGANI[num13]):
-                    text = f"ID:{num13:04d}-{num15:03d}"
-                    # ListBoxImages.Items.Add(text)  # UI操作占位
-                    num15 += 1
-            if num13 % 30 == 0:
-                pass  # 进度条更新占位
-            num13 += 1
-
     def analyze_file(self, file_path):
         """根据文件名自动选择合适的分析方法"""
         file_name = os.path.basename(file_path).lower()
@@ -508,13 +349,14 @@ class FD2Analyzer(Main):
         success_count = 0
         for i in range(len(self.datablocksICON)):
             # 检查数据块是否存在且有效
-            if self.datablocksICON[i] is not None and hasattr(self.datablocksICON[i], 'length') and self.datablocksICON[i].length > 4:
+            data_block = self.datablocksICON[i]
+            if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                 try:
                     image = self.bmp_maker.makeShapBMP(
                         24, 24,  # 图标固定大小24x24
                         self.fileDatas,
-                        self.datablocksICON[i].startOffset,
-                        self.datablocksICON[i].length,
+                        data_block.startOffset,
+                        data_block.length,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'icon_{i:05d}.png')
@@ -569,13 +411,14 @@ class FD2Analyzer(Main):
         for i in range(len(self.dataBlocksDATO)):
             for j in range(len(self.dataBlocksDATO[i])):
                 # 检查数据块是否存在且有效
-                if self.dataBlocksDATO[i][j] is not None and hasattr(self.dataBlocksDATO[i][j], 'length') and self.dataBlocksDATO[i][j].length > 4:
+                data_block = self.dataBlocksDATO[i][j]
+                if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                     try:
                         # 使用makeFaceBMP方法处理DATO文件，从数据中读取宽度和高度
                         image = self.bmp_maker.makeFaceBMP(
                             self.fileDatas,
-                            self.dataBlocksDATO[i][j].startOffset,
-                            self.dataBlocksDATO[i][j].length,
+                            data_block.startOffset,
+                            data_block.length,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'dato_{i:05d}_{j:02d}.png')
@@ -598,13 +441,14 @@ class FD2Analyzer(Main):
         success_count = 0
         for i in range(len(self.dataBlocksBG)):
             # 检查数据块是否存在且有效
-            if self.dataBlocksBG[i] is not None and hasattr(self.dataBlocksBG[i], 'length') and self.dataBlocksBG[i].length > 4:
+            data_block = self.dataBlocksBG[i]
+            if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                 try:
                     # 使用makeBgBMP方法处理BG文件，从数据中读取宽度和高度
                     image = self.bmp_maker.makeBgBMP(
                         self.fileDatas,
-                        self.dataBlocksBG[i].startOffset,
-                        self.dataBlocksBG[i].length,
+                        data_block.startOffset,
+                        data_block.length,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'bg_{i:05d}.png')
@@ -620,21 +464,22 @@ class FD2Analyzer(Main):
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
         
-        # 使用与BG.DAT相似的分析方法
-        self.AnalysisBG()  # TAI.DAT可能使用与BG.DAT相同的索引结构
+        # 使用TAI专用的分析方法
+        self.AnalysisTAI()  # TAI.DAT使用专用的索引结构分析方法
         print(f'TAI分析完成，共{len(self.dataBlocksBG)}个数据块')
         
         # 生成图像
         success_count = 0
         for i in range(len(self.dataBlocksBG)):
             # 检查数据块是否存在且有效
-            if self.dataBlocksBG[i] is not None and hasattr(self.dataBlocksBG[i], 'length') and self.dataBlocksBG[i].length > 4:
+            data_block = self.dataBlocksBG[i]
+            if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                 try:
-                    # 使用makeBgBMP方法处理TAI文件，从数据中读取宽度和高度
-                    image = self.bmp_maker.makeBgBMP(
+                    # 使用TAI专用的图像生成方法处理TAI文件，从数据中读取宽度和高度
+                    image = self.bmp_maker.makeTAIBMP(
                         self.fileDatas,
-                        self.dataBlocksBG[i].startOffset,
-                        self.dataBlocksBG[i].length,
+                        data_block.startOffset,
+                        data_block.length,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'tai_{i:05d}.png')
@@ -665,13 +510,14 @@ class FD2Analyzer(Main):
                 success_count = 0
                 for j in range(sub_block_count):
                     # 检查数据块是否存在且有效
-                    if self.dataBlocksFIGANI[i][j] is not None and hasattr(self.dataBlocksFIGANI[i][j], 'length') and self.dataBlocksFIGANI[i][j].length > 4:
+                    data_block = self.dataBlocksFIGANI[i][j]
+                    if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                         try:
                             # 使用makeFightBMP方法处理FIGANI文件，从数据中读取宽度和高度
                             image = self.bmp_maker.makeFightBMP(
                                 self.fileDatas,
-                                self.dataBlocksFIGANI[i][j].startOffset,
-                                self.dataBlocksFIGANI[i][j].length,
+                                data_block.startOffset,
+                                data_block.length,
                                 ColorPanel(1)
                             )
                             image_path = os.path.join(sequence_dir, f'frame_{j:03d}.png')
@@ -682,3 +528,66 @@ class FD2Analyzer(Main):
                 print(f'  动作序列{i:04d}: 成功提取{success_count}帧')
                 total_sequences += 1
         print(f'成功处理{total_sequences}个FIGANI动作序列')
+
+    def load_fdother_file(self, file_path):
+        """分析FDOTHER.DAT文件 - 混合资源"""
+        print("分析FDOTHER.DAT文件...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用AnalysisOTHER和AnalysisOtherSubs进行文件分析
+        self.AnalysisOTHER()
+        print(f'FDOTHER分析完成，共{len(self.datablocksOTHER)}个主分类')
+        
+        # 处理所有子索引
+        total_processed = 0
+        for subIndex in range(len(self.datablocksOTHER)):
+            try:
+                self.AnalysisOtherSubs(subIndex)
+                self.AnalysisOtherSubsImage(subIndex)
+                total_processed += 1
+                print(f'处理主分类{subIndex}完成')
+            except Exception as e:
+                print(f'处理主分类{subIndex}时出错: {e}')
+        print(f'成功处理{total_processed}个FDOTHER主分类')
+
+
+def main():
+    """主函数，支持命令行参数解析"""
+    import argparse
+    import os
+    import sys
+    
+    parser = argparse.ArgumentParser(description='炎龙骑士团II资源文件分析器')
+    parser.add_argument('file', nargs='?', help='要分析的资源文件路径')
+    parser.add_argument('-b', '--batch', help='批量分析目录中的所有支持文件')
+    parser.add_argument('-o', '--output', default='output_images', help='输出目录路径')
+    
+    args = parser.parse_args()
+    
+    # 创建分析器实例
+    analyzer = FD2Analyzer()
+    analyzer.output_dir = args.output
+    os.makedirs(analyzer.output_dir, exist_ok=True)
+    
+    if args.batch:
+        # 批量分析模式
+        if os.path.isdir(args.batch):
+            analyzer.batch_analyze(args.batch)
+        else:
+            print(f"错误: 目录 '{args.batch}' 不存在")
+            sys.exit(1)
+    elif args.file:
+        # 单文件分析模式
+        if os.path.isfile(args.file):
+            analyzer.analyze_file(args.file)
+        else:
+            print(f"错误: 文件 '{args.file}' 不存在")
+            sys.exit(1)
+    else:
+        # 显示帮助信息
+        parser.print_help()
+
+
+if __name__ == '__main__':
+    main()

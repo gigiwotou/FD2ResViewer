@@ -51,10 +51,16 @@ class ColorPanel:
         
         for i in range(256):
             if self.colorPanelData and len(self.colorPanelData) >= (i*3 + 3):
-                # 注意：调色板数据是6位颜色值(0-63)，需要转换为8位(0-255)
-                red = min(255, self.colorPanelData[i*3] * 4)
-                green = min(255, self.colorPanelData[i*3 + 1] * 4)
-                blue = min(255, self.colorPanelData[i*3 + 2] * 4)
+                # 正确的6位颜色值转换为8位的方法：左移2位并保留低4位
+                # 这样可以保持颜色的精度和连续性
+                red_value = self.colorPanelData[i*3]
+                green_value = self.colorPanelData[i*3 + 1]
+                blue_value = self.colorPanelData[i*3 + 2]
+                
+                # 正确的转换方式：(value << 2) | (value >> 4)
+                red = (red_value << 2) | (red_value >> 4)
+                green = (green_value << 2) | (green_value >> 4)
+                blue = (blue_value << 2) | (blue_value >> 4)
             else:
                 # 默认灰度颜色
                 red = green = blue = i
@@ -93,7 +99,7 @@ class DataBlock:
 class BMPMaker:
     def __init__(self):
         # 加载资源文件
-        self.BMPHeader1Bit = self._load_resource('SingleBitBMPHeader')
+        self.BMPHeader1Bit = self._load_resource('SingleBitBMPHeader') or bytearray(64)  # 提供默认值
         self.colorPanel_data = self._load_resource('colorPanel')
         self.colornew_data = self._load_resource('colornew')
         self.colornew2_data = self._load_resource('colornew2')
@@ -272,9 +278,101 @@ class BMPMaker:
                         num11 += 1
                         flag = False
                     num13 += 1
-                    num4 += 1  # 更新num4以读取下一个数据
                 num8 -= 1
             num4 += 1
+        
+        return self.BMPimage
+
+    def makeFightBMP(self, datablock, startOffset, length, colorpanel):
+        flag = False
+        # 从数据块的起始位置读取宽度和高度
+        # 修正：宽度和高度应该从startOffset和startOffset+2位置读取
+        width = struct.unpack('<h', datablock[startOffset:startOffset+2])[0]
+        height = struct.unpack('<h', datablock[startOffset+2:startOffset+4])[0]
+        # 确保宽度和高度为正数
+        if width <= 0 or height <= 0:
+            # 如果直接读取的值不合理，尝试其他位置
+            width = struct.unpack('<h', datablock[startOffset+9:startOffset+11])[0]
+            height = struct.unpack('<h', datablock[startOffset+11:startOffset+13])[0]
+        
+        # 确保宽度和高度在合理范围内
+        width = max(1, min(width, 1000))
+        height = max(1, min(height, 1000))
+        
+        self.BMPimage = Image.new('RGB', (width, height))
+        progress_max = length - 5
+        num2 = startOffset + 4  # 从数据开始位置读取（修正为startOffset + 4）
+        num3 = startOffset + length - 1
+        num4 = num2
+        num7 = 0
+        num8 = 0
+        num9 = 0
+        b = 0
+        num10 = 0
+        num11 = 0
+        
+        while num4 <= num3 and num4 < len(datablock):
+            if num4 % 200 == 0:
+                pass  # 需补充进度条更新逻辑
+            
+            # 修复flag处理逻辑，使其与C#版本完全一致
+            if num7 != 0:
+                num7 = 0
+                flag = True
+            else:
+                flag = False
+            
+            # 关键修复：flag会被num8的值覆盖
+            flag = (num8 != 0)
+            
+            # 修复逻辑判断，使其与C#版本完全一致
+            # C#中的 if (unchecked(0 - (flag ? 1 : 0)) == 0) 等价于 if not flag:
+            if not flag:
+                num7 = 0
+                num8 = 0
+                num9 = 0
+                if num4 < len(datablock):
+                    b = datablock[num4]
+                    if b >= 192:
+                        num7 = b - 192 + 1
+                    if 128 <= b < 192:  # 修复条件判断逻辑，使用if而非elif
+                        num8 = b - 128 + 1
+                    if 64 <= b < 128:   # 修复条件判断逻辑，使用if而非elif
+                        num9 = b - 64
+                        num8 = 1
+                        flag = True
+                    if b <= 63:         # 修复条件判断逻辑，使用if而非elif
+                        num8 = 1
+                        num9 = b
+                
+                num10 += num7
+                if num10 >= width:
+                    num10 = 0
+                    num11 += 1
+                    flag = False
+            else:
+                # 修复循环逻辑，使其与C#版本完全一致
+                num12 = num9
+                num13 = 0
+                while True:
+                    if num13 > num12:
+                        break
+                    if 64 <= b < 128:
+                        num10 += 1
+                    if num4 < len(datablock):
+                        index = datablock[num4]
+                        num7 = 1  # 重置num7为1
+                        if 0 <= num10 < width and 0 <= num11 < height:
+                            self.BMPimage.putpixel((num10, num11), colorpanel.thisColor(index))
+                    num10 += num7
+                    if num10 >= width:
+                        num10 = 0
+                        num11 += 1
+                        flag = False
+                    num13 += 1
+                num8 -= 1
+                num4 += 1  # 只在else分支中增加num4
+            num4 += 1  # 在所有情况下都增加num4
         
         return self.BMPimage
 
@@ -300,34 +398,24 @@ class BMPMaker:
         
         return self.BMPimage
 
-    def adCharactersToField(self, field, id):
-        num = id * 3 + 2
-        # 假设MyModule.dataFileDatas[3].datas是字节数据
-        # num2 = struct.unpack('<h', MyModule.dataFileDatas[3].datas[MyModule.datablocksFDFIELD[num].startOffset:MyModule.datablocksFDFIELD[num].startOffset+2])[0]
-        self.BMPimage = field.copy()
-        # 需要补充Graphics绘制逻辑
-        return self.BMPimage
-
-    def makeFightBMP(self, datablock, startOffset, length, colorpanel):
+    def makeTAIBMP(self, datablock, startOffset, length, colorpanel):
+        """TAI文件专用图像生成方法"""
         flag = False
-        # 从数据块的起始位置读取宽度和高度
         width = struct.unpack('<h', datablock[startOffset:startOffset+2])[0]
         height = struct.unpack('<h', datablock[startOffset+2:startOffset+4])[0]
         self.BMPimage = Image.new('RGB', (width, height))
         progress_max = length - 5
-        num2 = startOffset + 4  # 从数据开始位置读取
+        num2 = startOffset + 4
         num3 = startOffset + length - 1
         num4 = num2
         num7 = 0
         num8 = 0
         num9 = 0
+        b = 0
         num10 = 0
         num11 = 0
         
-        # 初始化b变量
-        b = 0
-        
-        while num4 <= num3 and num4 < len(datablock):
+        while num4 <= num3:
             if num4 % 200 == 0:
                 pass  # 需补充进度条更新逻辑
             
@@ -377,11 +465,10 @@ class BMPMaker:
                         num10 += 1
                     if num4 < len(datablock):
                         index = datablock[num4]
-                        # 确保颜色索引在有效范围内
-                        if 0 <= index < 256:
-                            if 0 <= num10 < width and 0 <= num11 < height:
-                                self.BMPimage.putpixel((num10, num11), colorpanel.thisColor(index))
-                    num10 += 1
+                        num7 = 1
+                        if 0 <= num10 < width and 0 <= num11 < height:
+                            self.BMPimage.putpixel((num10, num11), colorpanel.thisColor(index))
+                    num10 += num7
                     if num10 >= width:
                         num10 = 0
                         num11 += 1
@@ -390,6 +477,14 @@ class BMPMaker:
                 num8 -= 1
             num4 += 1
         
+        return self.BMPimage
+
+    def adCharactersToField(self, field, id):
+        num = id * 3 + 2
+        # 假设MyModule.dataFileDatas[3].datas是字节数据
+        # num2 = struct.unpack('<h', MyModule.dataFileDatas[3].datas[MyModule.datablocksFDFIELD[num].startOffset:MyModule.datablocksFDFIELD[num].startOffset+2])[0]
+        self.BMPimage = field.copy()
+        # 需要补充Graphics绘制逻辑
         return self.BMPimage
 
     def makeShapBMP(self, width, height, datablock, startOffset, length, colorpanel):
@@ -403,6 +498,7 @@ class BMPMaker:
         num7 = 0
         num8 = 0
         num9 = 0
+        b = 0  # 初始化b变量
         # print(f"makeShapBMP: width={width}, height={height}, startOffset={startOffset}, length={length}")
         while num2 <= num:
             if num2 % 200 == 0:
@@ -419,7 +515,8 @@ class BMPMaker:
                 num5 = 0
                 num6 = 0
                 num7 = 0
-                b = datablock[num2]
+                if num2 < len(datablock):
+                    b = datablock[num2]
                 if b >= 192:
                     num5 = b - 192 + 1
                 elif 128 <= b < 192:
@@ -497,47 +594,67 @@ class Main:
         self.fd2FileDatas = None
         
         os.makedirs(self.output_dir, exist_ok=True)
+   
 
     def AnalysisOTHER(self):
         array = [0] * 104
         num = 6
+        # 确保self.fileDatas不为None
+        if self.fileDatas is None:
+            return
         while num <= 418:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            # 确保索引在有效范围内
+            if index < len(array) and num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
         num5 = 0
         while num5 <= num4:
-            self.datablocksOTHER[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            # 确保索引在有效范围内
+            if num5 < len(self.datablocksOTHER) and num5 + 1 < len(array):
+                self.datablocksOTHER[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
-        self.datablocksOTHER[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        # 处理最后一个数据块
+        if num5 < len(self.datablocksOTHER) and num5 < len(array) and self.fileDatas is not None:
+            self.datablocksOTHER[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
 
         # 进度条和列表框更新逻辑占位
         progress_max = 103
+
         num8 = 0
-        # while num8 <= 102:
-        #     text = f"ID:{num8:04d}"
-        #     if num8 % 4 == 0:
-        #         pass  # 进度条更新占位
-        #     # 调用AnalysisOtherSubs处理子索引
-        #     self.AnalysisOtherSubs(num8)
-        #     num8 += 1
+        while num8 <= 102:
+            text = f"ID:{num8:04d}"
+            if num8 % 4 == 0:
+                pass  # 进度条更新占位
+            # 调用AnalysisOtherSubs处理子索引
+            self.AnalysisOtherSubs(num8)
+            num8 += 1
 
     def AnalysisFDFIELD(self):
         array = [0] * 100
         num = 6
+        # 确保self.fileDatas不为None
+        if self.fileDatas is None:
+            return
         while num <= 402:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            # 确保索引在有效范围内
+            if index < len(array) and num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
         num5 = 0
         while num5 <= num4:
-            self.datablocksFDFIELD[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            # 确保索引在有效范围内
+            if num5 < len(self.datablocksFDFIELD) and num5 + 1 < len(array):
+                self.datablocksFDFIELD[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
-        self.datablocksFDFIELD[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        # 处理最后一个数据块
+        if num5 < len(self.datablocksFDFIELD) and num5 < len(array) and self.fileDatas is not None:
+            self.datablocksFDFIELD[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
 
         # 进度条和列表框更新逻辑占位
         progress_max = 99
@@ -547,44 +664,8 @@ class Main:
             # ListBoxImages.Items.Add(text)  # UI操作占位
             if num8 % 4 == 0:
                 pass  # 进度条更新占位
+
             num8 += 3
-
-    def AnalysisDATO(self):
-        array = [0] * 137
-        num = 6
-        while num <= 550:
-            index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            array2 = [0] * 4
-            num8 = 0
-            while num8 <= 3:
-                array2[num8] = array[num5] + struct.unpack('<I', self.fileDatas[array[num5] + num8*4 : array[num5] + (num8+1)*4])[0]
-                num8 += 1
-
-            num8 = 0
-            while num8 <= 2:
-                self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array2[num8+1] - array2[num8])
-                num8 += 1
-            self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array[num5+1] - array2[num8])
-            num5 += 1
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 136
-        num11 = 0
-        while num11 <= 135:
-            num12 = 0
-            while num12 <= 3:
-                text = f"ID:{num11:04d}-{num12}"
-                # ListBoxImages.Items.Add(text)  # UI操作占位
-                num12 += 1
-            if num11 % 30 == 0:
-                pass  # 进度条更新占位
-            num11 += 1
 
     def AnalysisFDSHAP(self):
         array = [0] * 67
@@ -628,141 +709,112 @@ class Main:
             num13 += 1
         self.shapsDone = True
 
-    def AnalysisTXT(self):
-        array = [0] * 35
+    # def AnalysisFIGANI(self):
+    #     if self.fileDatas is None:
+    #         return
+            
+    #     array = [0] * 409
+    #     num = 6
+    #     # 修复主块偏移量读取逻辑，确保与C#版本一致
+    #     while num <= 1638:
+    #         index = int(round((num - 6) / 4.0))
+    #         if index < len(array) and num + 4 <= len(self.fileDatas):
+    #             array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+    #         num += 4
+
+    #     array2 = [0] * 41
+    #     num4 = len(array) - 2
+    #     num5 = 0
+    #     while num5 <= num4:
+    #         # 读取子块计数
+    #         if array[num5] < len(self.fileDatas) and array[num5] > 0:
+    #             self.FIGANIsubBlockCount[num5] = self.fileDatas[array[num5]]
+    #         else:
+    #             self.FIGANIsubBlockCount[num5] = 0
+            
+    #         # 读取子块偏移量 (使用正确的偏移量计算方法)
+    #         num8 = self.FIGANIsubBlockCount[num5] - 1
+    #         num9 = 0
+    #         while num9 <= num8 and self.FIGANIsubBlockCount[num5] > 0:
+    #             if array[num5] + 8 + num9 * 4 + 4 <= len(self.fileDatas):
+    #                 # 读取原始偏移量值
+    #                 raw_bytes = self.fileDatas[array[num5] + 8 + num9 * 4:array[num5] + 12 + num9 * 4]
+    #                 # 使用字节1-2组合作为相对偏移量
+    #                 relative_offset = raw_bytes[1] + (raw_bytes[2] << 8)
+    #                 # 计算实际偏移量
+    #                 array2[num9] = array[num5] + relative_offset
+    #             else:
+    #                 array2[num9] = 0
+    #             num9 += 1
+
+    #         # 对偏移量进行排序，确保按正确顺序处理
+    #         valid_offsets = [offset for offset in array2[:self.FIGANIsubBlockCount[num5]] if offset > 0]
+    #         valid_offsets.sort()
+            
+    #         # 重新分配排序后的偏移量
+    #         for i in range(len(valid_offsets)):
+    #             if i < len(array2):
+    #                 array2[i] = valid_offsets[i]
+    #         # 填充剩余位置为0
+    #         for i in range(len(valid_offsets), self.FIGANIsubBlockCount[num5]):
+    #             if i < len(array2):
+    #                 array2[i] = 0
+
+    #         # 创建数据块
+    #         num11 = self.FIGANIsubBlockCount[num5] - 2
+    #         num9 = 0
+    #         while num9 <= num11 and self.FIGANIsubBlockCount[num5] > 0:
+    #             if num9 < len(array2) and num9 + 1 < len(array2):
+    #                 length = array2[num9 + 1] - array2[num9]
+    #                 if length > 0 and array2[num9] < len(self.fileDatas):
+    #                     # 确保数据结构已初始化
+    #                     if self.dataBlocksFIGANI[num5] is None:
+    #                         self.dataBlocksFIGANI[num5] = [None] * 41
+    #                     if num9 < len(self.dataBlocksFIGANI[num5]):
+    #                         self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+    #             num9 += 1
+
+    #         # 处理最后一个数据块
+    #         if self.FIGANIsubBlockCount[num5] > 0:
+    #             # 确保数据结构已初始化
+    #             if self.dataBlocksFIGANI[num5] is None:
+    #                 self.dataBlocksFIGANI[num5] = [None] * 41
+                    
+    #             if num9 < self.FIGANIsubBlockCount[num5]:
+    #                 if (num5 + 1) < len(array) and array[num5+1] < len(self.fileDatas) and array[num5+1] > 0:
+    #                     # 使用下一个主块的起始位置计算长度
+    #                     length = array[num5+1] - array2[num9]
+    #                 else:
+    #                     # 对于最后一个主块，使用文件长度计算
+    #                     length = len(self.fileDatas) - array2[num9]
+    #                 if length > 0 and array2[num9] < len(self.fileDatas):
+    #                     if num9 < len(self.dataBlocksFIGANI[num5]):
+    #                         self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+            
+    #         num5 += 1
+    def AnalysisICON(self):
+        array = [0] * 1681
         num = 6
-        while num <= 142:
+        # 确保self.fileDatas不为None
+        if self.fileDatas is None:
+            return
+        while num <= 6726:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            self.TXTsubBlockCount[num5] = int(struct.unpack('<h', self.fileDatas[array[num5]:array[num5]+2])[0] / 2)
-            num8 = self.TXTsubBlockCount[num5] - 1
-            array2 = [0] * (num8 + 1)
-            num9 = 0
-            while num9 <= num8:
-                array2[num9] = array[num5] + struct.unpack('<h', self.fileDatas[array[num5] + num9*2 : array[num5] + (num9+1)*2])[0]
-                num9 += 1
-
-            num11 = self.TXTsubBlockCount[num5] - 2
-            num9 = 0
-            while num9 <= num11:
-                self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
-                num9 += 1
-            self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
-            num5 += 1
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 34
-        num13 = 0
-        while num13 <= 33:
-            num14 = self.TXTsubBlockCount[num13] - 1
-            num15 = 0
-            while num15 <= num14:
-                text = f"ID:{num13:04d}-{num15:04d}"
-                # ListBoxImages.Items.Add(text)  # UI操作占位
-                num15 += 1
-            if num13 % 30 == 0:
-                pass  # 进度条更新占位
-            num13 += 1
-
-    def AnalysisFIGANI(self):
-        array = [0] * 409
-        num = 6
-        while num <= 1638 and num < len(self.fileDatas) - 3:
-            index = int((num - 6) / 4)
+            # 确保索引在有效范围内
             if index < len(array) and num + 4 <= len(self.fileDatas):
                 array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
         num5 = 0
-        while num5 <= num4 and num5 < len(self.dataBlocksFIGANI):
-            if array[num5] < len(self.fileDatas):
-                self.FIGANIsubBlockCount[num5] = self.fileDatas[array[num5]]
-            else:
-                self.FIGANIsubBlockCount[num5] = 0
-            
-            num8 = self.FIGANIsubBlockCount[num5] - 1
-            # 确保数组大小合理
-            if num8 >= 0 and num8 < 100:  # 设置合理的上限
-                array2 = [0] * (num8 + 1)
-                num9 = 0
-                while num9 <= num8:
-                    start_pos = array[num5] + 8 + num9*4
-                    end_pos = array[num5] + 12 + num9*4
-                    if start_pos + 4 <= len(self.fileDatas) and end_pos <= len(self.fileDatas):
-                        array2[num9] = array[num5] + struct.unpack('<I', self.fileDatas[start_pos:end_pos])[0]
-                    else:
-                        array2[num9] = array[num5]
-                    num9 += 1
-
-                num11 = self.FIGANIsubBlockCount[num5] - 2
-                num9 = 0
-                while num9 <= num11 and num9 < len(self.dataBlocksFIGANI[num5]):
-                    if (num9 + 1) < len(array2):
-                        length = array2[num9+1] - array2[num9]
-                        if length > 0:
-                            self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
-                    num9 += 1
-                
-                # 处理最后一个数据块
-                if num9 < len(self.dataBlocksFIGANI[num5]):
-                    if (num5 + 1) < len(array):
-                        # 使用下一个主块的起始位置计算长度
-                        if num9 > 0:
-                            length = array[num5+1] - array2[num9-1]
-                        else:
-                            # 如果没有前一个子块，使用主块起始位置+8作为起始
-                            length = array[num5+1] - (array[num5] + 8)
-                    else:
-                        # 对于最后一个主块，使用文件长度计算
-                        if num9 > 0:
-                            length = len(self.fileDatas) - array2[num9-1]
-                        else:
-                            # 如果没有前一个子块，使用主块起始位置+8作为起始
-                            length = len(self.fileDatas) - (array[num5] + 8)
-                    if length > 0:
-                        if num9 > 0:
-                            start_offset = array2[num9-1]
-                        else:
-                            start_offset = array[num5] + 8
-                        self.dataBlocksFIGANI[num5][num9] = DataBlock(start_offset, length)
-            num5 += 1
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 408
-        num13 = 0
-        while num13 <= 407 and num13 < len(self.FIGANIsubBlockCount):
-            if self.FIGANIsubBlockCount[num13] > 0:
-                num14 = self.FIGANIsubBlockCount[num13] - 1
-                num15 = 0
-                while num15 <= num14 and num13 < len(self.dataBlocksFIGANI) and num15 < len(self.dataBlocksFIGANI[num13]):
-                    text = f"ID:{num13:04d}-{num15:03d}"
-                    # ListBoxImages.Items.Add(text)  # UI操作占位
-                    num15 += 1
-            if num13 % 30 == 0:
-                pass  # 进度条更新占位
-            num13 += 1
-
-    def AnalysisICON(self):
-        array = [0] * 1681
-        num = 6
-        while num <= 6726:
-            index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
         while num5 <= num4:
-            self.datablocksICON[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            # 确保索引在有效范围内
+            if num5 < len(self.datablocksICON):
+                self.datablocksICON[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
         # 处理最后一个数据块
-        self.datablocksICON[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        if num5 < len(self.datablocksICON) and num5 < len(array) and self.fileDatas is not None:
+            self.datablocksICON[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
     
     def AnalysisOtherSubs(self, subIndex):
         if subIndex in (1, 14):
@@ -1329,7 +1381,84 @@ class Main:
                     image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
                     image.save(image_path)
 
+    def AnalysisTXT(self):
+        """分析FDTXT数据结构"""
+        array = [0] * 35
+        num = 6
+        while num <= 142:
+            index = int((num - 6) / 4)
+            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            num += 4
+
+        num4 = len(array) - 2
+        num5 = 0
+        while num5 <= num4:
+            self.TXTsubBlockCount[num5] = int(struct.unpack('<h', self.fileDatas[array[num5]:array[num5]+2])[0] / 2)
+            num8 = self.TXTsubBlockCount[num5] - 1
+            array2 = [0] * (num8 + 1)
+            num9 = 0
+            while num9 <= num8:
+                array2[num9] = array[num5] + struct.unpack('<h', self.fileDatas[array[num5] + num9*2 : array[num5] + (num9+1)*2])[0]
+                num9 += 1
+
+            num11 = self.TXTsubBlockCount[num5] - 2
+            num9 = 0
+            while num9 <= num11:
+                # 确保不会越界
+                if num5 < len(self.datablocksTXT) and num9 < len(self.datablocksTXT[num5]):
+                    self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
+                num9 += 1
+            # 处理最后一个数据块
+            if num5 < len(self.datablocksTXT) and num9 < len(self.datablocksTXT[num5]):
+                self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
+            num5 += 1
+
+        # 进度条和列表框更新逻辑占位
+        progress_max = 34
+        num13 = 0
+        while num13 <= 33:
+            if num13 < len(self.TXTsubBlockCount):
+                num14 = self.TXTsubBlockCount[num13] - 1
+                num15 = 0
+                while num15 <= num14:
+                    text = f"ID:{num13:04d}-{num15:04d}"
+                    # ListBoxImages.Items.Add(text)  # UI操作占位
+                    num15 += 1
+            if num13 % 30 == 0:
+                pass  # 进度条更新占位
+            num13 += 1
+
+    def AnalysisDATO(self):
+        """分析DATO数据结构"""
+        array = [0] * 137
+        num = 6
+        while num <= 550:
+            index = int((num - 6) / 4)
+            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            num += 4
+
+        num4 = len(array) - 2
+        num5 = 0
+        while num5 <= num4:
+            array2 = [0] * 4
+            num8 = 0
+            while num8 <= 3:
+                array2[num8] = array[num5] + struct.unpack('<I', self.fileDatas[array[num5] + num8*4 : array[num5] + (num8+1)*4])[0]
+                num8 += 1
+
+            num8 = 0
+            while num8 <= 2:
+                # 确保不会越界
+                if num5 < len(self.dataBlocksDATO) and num8 < len(self.dataBlocksDATO[num5]):
+                    self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array2[num8+1] - array2[num8])
+                num8 += 1
+            # 处理最后一个数据块
+            if num5 < len(self.dataBlocksDATO) and num8 < len(self.dataBlocksDATO[num5]):
+                self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array[num5+1] - array2[num8])
+            num5 += 1
+
     def AnalysisBG(self):
+        """分析BG数据结构"""
         array = [0] * 57
         num = 6
         while num <= 230:
@@ -1340,42 +1469,117 @@ class Main:
         num4 = len(array) - 2
         num5 = 0
         while num5 <= num4:
-            self.dataBlocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            # 确保不会越界
+            if num5 < len(self.dataBlocksBG):
+                self.dataBlocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
-        self.dataBlocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        # 处理最后一个数据块
+        if num5 < len(self.dataBlocksBG):
+            self.dataBlocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+
+    def AnalysisTAI(self):
+        """分析TAI数据结构（专用）"""
+        array = [0] * 57
+        num = 6
+        while num <= 230:
+            index = int((num - 6) / 4)
+            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            num += 4
+
+        num4 = len(array) - 2
+        num5 = 0
+        while num5 <= num4:
+            # 确保不会越界
+            if num5 < len(self.dataBlocksBG):
+                self.dataBlocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            num5 += 1
+        # 处理最后一个数据块
+        if num5 < len(self.dataBlocksBG):
+            self.dataBlocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+
+    def AnalysisFIGANI(self):
+        """分析FIGANI数据结构"""
+        array = [0] * 409
+        num = 6
+        while num <= 1638 and num < len(self.fileDatas) - 3:
+            index = int((num - 6) / 4)
+            # 确保索引在有效范围内
+            if index < len(array) and num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            num += 4
+
+        num4 = len(array) - 2
+        num5 = 0
+        while num5 <= num4 and num5 < len(self.FIGANIsubBlockCount):
+            # 确保数组索引在有效范围内
+            if num5 < len(array) and array[num5] < len(self.fileDatas) and array[num5] > 0:
+                self.FIGANIsubBlockCount[num5] = self.fileDatas[array[num5]]
+            else:
+                self.FIGANIsubBlockCount[num5] = 0
+            
+            if self.FIGANIsubBlockCount[num5] > 0:
+                num8 = self.FIGANIsubBlockCount[num5] - 1
+                # 确保数组大小合理
+                if num8 >= 0 and num8 < 100:  # 设置合理的上限
+                    array2 = [0] * (num8 + 1)
+                    num9 = 0
+                    while num9 <= num8:
+                        start_pos = array[num5] + 1 + num9*4  # 从主分类起始位置+1（跳过子帧数量字节）开始
+                        end_pos = array[num5] + 1 + (num9+1)*4
+                        # 确保读取位置在文件范围内
+                        if start_pos + 4 <= len(self.fileDatas) and end_pos <= len(self.fileDatas):
+                            # 读取相对偏移量并计算绝对位置
+                            relative_offset = struct.unpack('<I', self.fileDatas[start_pos:start_pos+4])[0]
+                            array2[num9] = array[num5] + relative_offset
+                        else:
+                            array2[num9] = array[num5] + 1 + num9*4  # 默认值
+                        num9 += 1
+
+                    num11 = self.FIGANIsubBlockCount[num5] - 2
+                    num9 = 0
+                    while num9 <= num11 and num5 < len(self.dataBlocksFIGANI) and num9 < len(self.dataBlocksFIGANI[num5]):
+                        # 确保不会越界
+                        if (num9 + 1) < len(array2):
+                            length = array2[num9+1] - array2[num9]
+                            if length > 0 and array2[num9] < len(self.fileDatas):
+                                self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+                        num9 += 1
+                    
+                    # 处理最后一个数据块
+                    if num9 < len(self.dataBlocksFIGANI[num5]) and num9 > 0:
+                        if (num5 + 1) < len(array) and array[num5+1] < len(self.fileDatas) and array[num5+1] > 0:
+                            # 使用下一个主块的起始位置计算长度
+                            length = array[num5+1] - array2[num9]
+                        else:
+                            # 对于最后一个主块，使用文件长度计算
+                            length = len(self.fileDatas) - array2[num9]
+                        if length > 0 and array2[num9] < len(self.fileDatas):
+                            self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+                    elif num9 < len(self.dataBlocksFIGANI[num5]) and num9 == 0:
+                        # 处理只有一个子帧的情况
+                        if (num5 + 1) < len(array) and array[num5+1] < len(self.fileDatas) and array[num5+1] > 0:
+                            # 使用下一个主块的起始位置计算长度
+                            length = array[num5+1] - array2[num9]
+                        else:
+                            # 对于最后一个主块，使用文件长度计算
+                            length = len(self.fileDatas) - array2[num9]
+                        if length > 0 and array2[num9] < len(self.fileDatas):
+                            self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+            num5 += 1
 
         # 进度条和列表框更新逻辑占位
-        progress_max = 56
-        num8 = 0
-        while num8 <= 55:
-            text = f"ID:{num8:03d}"
-            # ListBoxImages.Items.Add(text)  # UI操作占位
-            if num8 % 4 == 0:
+        progress_max = 408
+        num13 = 0
+        while num13 <= 407 and num13 < len(self.FIGANIsubBlockCount):
+            if self.FIGANIsubBlockCount[num13] > 0:
+                num14 = self.FIGANIsubBlockCount[num13] - 1
+                num15 = 0
+                while num15 <= num14 and num13 < len(self.dataBlocksFIGANI) and num15 < len(self.dataBlocksFIGANI[num13]):
+                    text = f"ID:{num13:04d}-{num15:03d}"
+                    # ListBoxImages.Items.Add(text)  # UI操作占位
+                    num15 += 1
+            if num13 % 30 == 0:
                 pass  # 进度条更新占位
-            num8 += 1
-   
-    def load_fdother_file(self, file_path):
-        with open(file_path, 'rb') as f:
-            self.fileDatas = f.read()
-        # 使用AnalysisOTHER和AnalysisOtherSubs进行文件分析
-        self.AnalysisOTHER()
-        # print(f'datablocksOTHER长度:{len(self.datablocksOTHER)}')
-        # 处理所有子索引
-        for subIndex in range(len(self.datablocksOTHER)):
-            self.AnalysisOtherSubs(subIndex)
-            self.AnalysisOtherSubsImage(subIndex)
-            
-   
+            num13 += 1
 
-if __name__ == '__main__':
-    import sys
-    file_path = None
-    if len(sys.argv) > 1:
-        file_path = sys.argv[1]
-    else:
-        file_path = 'FDOTHER.DAT'
-    
-    main = Main()
-    main.load_fdother_file(file_path)
-    print(f'处理完成，图像已保存至 {main.output_dir} 目录')
     

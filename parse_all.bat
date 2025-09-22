@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 > nul
 echo 正在解析所有支持的文件...
 
 echo.
