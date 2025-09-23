@@ -3,10 +3,11 @@ import struct
 import io
 from PIL import Image
 import sys
-from typing import Any
+from typing import Any, Optional
 
 # 对应C#的DataBlock类
 from PIL import ImageColor
+
 
 class Color:
     def __init__(self, red, green, blue, reserved):
@@ -569,29 +570,32 @@ class Main:
         self.bmp_maker = BMPMaker()
         
         # 初始化实例变量（不是类变量）
-        self.datablocksICON = [None] * 1681
-        self.dataBlocksBG = [None] * 57
-        self.dataBlocksDATO = [[None for _ in range(4)] for _ in range(137)]
-        self.datablocksFDFIELD = [None] * 100
-        self.datablocksOTHER = [None] * 104
-        self.datablocksOTHERSubs = None
-        self.dataBlocksFDSHAP = [[None for _ in range(401)] for _ in range(67)]
-        self.FDSHAPsubBlockCount = [0] * 67
-        self.datablocksTXT = [[None for _ in range(701)] for _ in range(35)]
-        self.TXTsubBlockCount = [0] * 35
-        self.dataBlocksFIGANI = [[None for _ in range(41)] for _ in range(409)]
-        self.FIGANIsubBlockCount = [0] * 409
-        self.shapsDone = False
+        # 统一变量命名规则：使用驼峰命名法，并在变量名中表明类型
+        self.datablocksICON: list[Optional[DataBlock]] = [None] * 1681  # List[Optional[DataBlock]]
+        self.datablocksBG: list[Optional[DataBlock]] = [None] * 57  # List[Optional[DataBlock]]
+        self.datablocksTAI: list[Optional[DataBlock]] = [None] * 57  # List[Optional[DataBlock]]
+        self.datablocksDATO: list[list[Optional[DataBlock]]] = [[None for _ in range(4)] for _ in range(137)]  # List[List[Optional[DataBlock]]]
+        self.datablocksFDFIELD: list[Optional[DataBlock]] = [None] * 100  # List[Optional[DataBlock]]
+        self.datablocksOTHER: list[Optional[DataBlock]] = [None] * 104  # List[Optional[DataBlock]]
+        self.datablocksOTHERSubs: Optional[list[Optional[DataBlock]]] = None  # Optional[List[Optional[DataBlock]]]
+        self.datablocksFDSHAP: list[list[Optional[DataBlock]]] = [[None for _ in range(401)] for _ in range(67)]  # List[List[Optional[DataBlock]]]
+        self.subBlockCountsFDSHAP: list[int] = [0] * 67  # List[int]
+        self.datablocksTXT: list[list[Optional[DataBlock]]] = [[None for _ in range(701)] for _ in range(35)]  # List[List[Optional[DataBlock]]]
+        self.subBlockCountsTXT: list[int] = [0] * 35  # List[int]
+        self.datablocksFIGANI: list[list[Optional[DataBlock]]] = [[None for _ in range(41)] for _ in range(409)]  # List[List[Optional[DataBlock]]]
+        self.subBlockCountsFIGANI: list[int] = [0] * 409  # List[int]
+        self.shapsDone: bool = False  # bool
         
         # 文件数据变量
-        self.bgFileDatas = None
-        self.datoFileDatas = None
-        self.fieldFileDatas = None
-        self.otherFileDatas = None
-        self.shapFileDatas = None
-        self.txtFileDatas = None
-        self.figaniFileDatas = None
-        self.fd2FileDatas = None
+        self.fileDatasBG: Optional[bytes] = None  # Optional[bytes]
+        self.fileDatasDATO: Optional[bytes] = None  # Optional[bytes]
+
+        self.fileDatasFDFIELD: Optional[bytes] = None  # Optional[bytes]
+        self.fileDatasOTHER: Optional[bytes] = None  # Optional[bytes]
+        self.fileDatasFDSHAP: Optional[bytes] = None  # Optional[bytes]
+        self.fileDatasTXT: Optional[bytes] = None  # Optional[bytes]
+        self.fileDatasFIGANI: Optional[bytes] = None  # Optional[bytes]
+        self.fileDatasFD2: Optional[bytes] = None  # Optional[bytes]
         
         os.makedirs(self.output_dir, exist_ok=True)
    
@@ -667,131 +671,6 @@ class Main:
 
             num8 += 3
 
-    def AnalysisFDSHAP(self):
-        array = [0] * 67
-        num = 6
-        while num <= 270:
-            index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.shapFileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            self.FDSHAPsubBlockCount[num5] = struct.unpack('<h', self.shapFileDatas[array[num5]+4 : array[num5]+6])[0]
-            num8 = self.FDSHAPsubBlockCount[num5] - 1
-            array2 = [0] * (num8 + 1)
-            num9 = 0
-            while num9 <= num8:
-                array2[num9] = array[num5] + struct.unpack('<I', self.shapFileDatas[array[num5]+6+num9*4 : array[num5]+10+num9*4])[0]
-                num9 += 1
-
-            num11 = self.FDSHAPsubBlockCount[num5] - 2
-            num9 = 0
-            while num9 <= num11:
-                self.dataBlocksFDSHAP[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
-                num9 += 1
-            self.dataBlocksFDSHAP[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
-            num5 += 2
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 66
-        num13 = 0
-        while num13 <= 66:
-            num14 = self.FDSHAPsubBlockCount[num13] - 1
-            num15 = 0
-            while num15 <= num14:
-                text = f"ID:{num13:03d}-{num15:04d}"
-                # ListBoxImages.Items.Add(text)  # UI操作占位
-                num15 += 1
-            if num13 % 10 == 0:
-                pass  # 进度条更新占位
-            num13 += 1
-        self.shapsDone = True
-
-    # def AnalysisFIGANI(self):
-    #     if self.fileDatas is None:
-    #         return
-            
-    #     array = [0] * 409
-    #     num = 6
-    #     # 修复主块偏移量读取逻辑，确保与C#版本一致
-    #     while num <= 1638:
-    #         index = int(round((num - 6) / 4.0))
-    #         if index < len(array) and num + 4 <= len(self.fileDatas):
-    #             array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-    #         num += 4
-
-    #     array2 = [0] * 41
-    #     num4 = len(array) - 2
-    #     num5 = 0
-    #     while num5 <= num4:
-    #         # 读取子块计数
-    #         if array[num5] < len(self.fileDatas) and array[num5] > 0:
-    #             self.FIGANIsubBlockCount[num5] = self.fileDatas[array[num5]]
-    #         else:
-    #             self.FIGANIsubBlockCount[num5] = 0
-            
-    #         # 读取子块偏移量 (使用正确的偏移量计算方法)
-    #         num8 = self.FIGANIsubBlockCount[num5] - 1
-    #         num9 = 0
-    #         while num9 <= num8 and self.FIGANIsubBlockCount[num5] > 0:
-    #             if array[num5] + 8 + num9 * 4 + 4 <= len(self.fileDatas):
-    #                 # 读取原始偏移量值
-    #                 raw_bytes = self.fileDatas[array[num5] + 8 + num9 * 4:array[num5] + 12 + num9 * 4]
-    #                 # 使用字节1-2组合作为相对偏移量
-    #                 relative_offset = raw_bytes[1] + (raw_bytes[2] << 8)
-    #                 # 计算实际偏移量
-    #                 array2[num9] = array[num5] + relative_offset
-    #             else:
-    #                 array2[num9] = 0
-    #             num9 += 1
-
-    #         # 对偏移量进行排序，确保按正确顺序处理
-    #         valid_offsets = [offset for offset in array2[:self.FIGANIsubBlockCount[num5]] if offset > 0]
-    #         valid_offsets.sort()
-            
-    #         # 重新分配排序后的偏移量
-    #         for i in range(len(valid_offsets)):
-    #             if i < len(array2):
-    #                 array2[i] = valid_offsets[i]
-    #         # 填充剩余位置为0
-    #         for i in range(len(valid_offsets), self.FIGANIsubBlockCount[num5]):
-    #             if i < len(array2):
-    #                 array2[i] = 0
-
-    #         # 创建数据块
-    #         num11 = self.FIGANIsubBlockCount[num5] - 2
-    #         num9 = 0
-    #         while num9 <= num11 and self.FIGANIsubBlockCount[num5] > 0:
-    #             if num9 < len(array2) and num9 + 1 < len(array2):
-    #                 length = array2[num9 + 1] - array2[num9]
-    #                 if length > 0 and array2[num9] < len(self.fileDatas):
-    #                     # 确保数据结构已初始化
-    #                     if self.dataBlocksFIGANI[num5] is None:
-    #                         self.dataBlocksFIGANI[num5] = [None] * 41
-    #                     if num9 < len(self.dataBlocksFIGANI[num5]):
-    #                         self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
-    #             num9 += 1
-
-    #         # 处理最后一个数据块
-    #         if self.FIGANIsubBlockCount[num5] > 0:
-    #             # 确保数据结构已初始化
-    #             if self.dataBlocksFIGANI[num5] is None:
-    #                 self.dataBlocksFIGANI[num5] = [None] * 41
-                    
-    #             if num9 < self.FIGANIsubBlockCount[num5]:
-    #                 if (num5 + 1) < len(array) and array[num5+1] < len(self.fileDatas) and array[num5+1] > 0:
-    #                     # 使用下一个主块的起始位置计算长度
-    #                     length = array[num5+1] - array2[num9]
-    #                 else:
-    #                     # 对于最后一个主块，使用文件长度计算
-    #                     length = len(self.fileDatas) - array2[num9]
-    #                 if length > 0 and array2[num9] < len(self.fileDatas):
-    #                     if num9 < len(self.dataBlocksFIGANI[num5]):
-    #                         self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
-            
-    #         num5 += 1
     def AnalysisICON(self):
         array = [0] * 1681
         num = 6
@@ -818,10 +697,16 @@ class Main:
     
     def AnalysisOtherSubs(self, subIndex):
         if subIndex in (1, 14):
-            num43 = self.datablocksOTHER[subIndex].startOffset + 6
-            sWidth = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset : self.datablocksOTHER[subIndex].startOffset+2])[0]
-            sHeight = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset+2 : self.datablocksOTHER[subIndex].startOffset+4])[0]
-            num44 = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset+4 : self.datablocksOTHER[subIndex].startOffset+6])[0]
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            num43 = datablock.startOffset + 6
+            sWidth = struct.unpack('<h', self.fileDatas[datablock.startOffset : datablock.startOffset+2])[0]
+            sHeight = struct.unpack('<h', self.fileDatas[datablock.startOffset+2 : datablock.startOffset+4])[0]
+            num44 = struct.unpack('<h', self.fileDatas[datablock.startOffset+4 : datablock.startOffset+6])[0]
             self.datablocksOTHERSubs = [None] * (num44)
             array5 = [0] * num44
             num45 = num44 - 1
@@ -833,9 +718,11 @@ class Main:
             num48 = num44 - 2
             num46 = 0
             while num46 <= num48:
-                self.datablocksOTHERSubs[num46] = DataBlock(array5[num46], array5[num46+1] - array5[num46])
+                if self.datablocksOTHERSubs is not None:
+                    self.datablocksOTHERSubs[num46] = DataBlock(array5[num46], array5[num46+1] - array5[num46])
                 num46 += 1
-            self.datablocksOTHERSubs[num46] = DataBlock(array5[num46], self.datablocksOTHER[subIndex].length - array5[num46])
+            if self.datablocksOTHERSubs is not None:
+                self.datablocksOTHERSubs[num46] = DataBlock(array5[num46], datablock.length - array5[num46])
 
             # 进度条和列表框更新逻辑占位
             num51 = 0
@@ -847,10 +734,16 @@ class Main:
                 num51 += 1
 
         elif subIndex == 2:
-            startOffset2 = self.datablocksOTHER[subIndex].startOffset
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            startOffset2 = datablock.startOffset
             num34 = int(struct.unpack('<I', self.fileDatas[startOffset2:startOffset2+4])[0] / 4)
             array4 = [0] * num34
-            self.datablocksOTHERSubs = [None] * num34
+            self.datablocksOTHERSubs = [None] * num34  # type: ignore
             num36 = 0
             while num36 < num34:
                 array4[num36] = struct.unpack('<I', self.fileDatas[startOffset2 + num36*4 : startOffset2 + (num36+1)*4])[0]
@@ -861,9 +754,10 @@ class Main:
             bmp_maker = BMPMaker()
             colorpanel = ColorPanel(1)
             while num36 <= num38:
-                self.datablocksOTHERSubs[num36] = DataBlock(array4[num36], array4[num36+1] - array4[num36])
+                if self.datablocksOTHERSubs is not None:
+                    self.datablocksOTHERSubs[num36] = DataBlock(array4[num36], array4[num36+1] - array4[num36])
                 # # 解析宽度和高度
-                # data_offset = self.datablocksOTHER[subIndex].startOffset + self.datablocksOTHERSubs[num36].startOffset
+                # data_offset = datablock.startOffset + self.datablocksOTHERSubs[num36].startOffset
                 # sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
                 # sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
                 # # 生成图像                
@@ -878,7 +772,8 @@ class Main:
                 # image.save(image_path)
                 
                 num36 += 1
-            self.datablocksOTHERSubs[num36] = DataBlock(array4[num36], self.datablocksOTHER[subIndex].length - array4[num36])
+            if self.datablocksOTHERSubs is not None:
+                self.datablocksOTHERSubs[num36] = DataBlock(array4[num36], datablock.length - array4[num36])
 
             # 进度条和列表框更新逻辑占位
             num41 = 0
@@ -890,14 +785,22 @@ class Main:
                 num41 += 1
 
         elif subIndex == 4:
-            obj = self.datablocksOTHER[subIndex].length / 32
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            obj = datablock.length / 32
             array2 = [i*32 for i in range(int(obj))]
-            self.datablocksOTHERSubs = [None] * len(array2)
+            self.datablocksOTHERSubs = [None] * len(array2)  # type: ignore
             num17 = 0
             while num17 < len(array2)-1:
-                self.datablocksOTHERSubs[num17] = DataBlock(array2[num17], array2[num17+1] - array2[num17])
+                if self.datablocksOTHERSubs is not None:
+                    self.datablocksOTHERSubs[num17] = DataBlock(array2[num17], array2[num17+1] - array2[num17])
                 num17 += 1
-            self.datablocksOTHERSubs[num17] = DataBlock(array2[num17], self.datablocksOTHER[subIndex].length - array2[num17])
+            if self.datablocksOTHERSubs is not None:
+                self.datablocksOTHERSubs[num17] = DataBlock(array2[num17], datablock.length - array2[num17])
 
             # 进度条和列表框更新逻辑占位
             num22 = 0
@@ -909,25 +812,33 @@ class Main:
                 num22 += 1
 
         elif subIndex in (5, 6, 9, 96):
-            num3 = self.datablocksOTHER[subIndex].startOffset + 4
-            # print(f"解析数据段 subIndex：{subIndex}. 起始地址: 0x{self.datablocksOTHER[subIndex].startOffset:X}")
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            num3 = datablock.startOffset + 4
+            # print(f"解析数据段 subIndex：{subIndex}. 起始地址: 0x{datablock.startOffset:X}")
             num4 = struct.unpack('<h', self.fileDatas[num3:num3+2])[0]
             # print(f"subIndex: {subIndex}, num4: {num4}")
             array = [0] * num4
-            self.datablocksOTHERSubs = [None] * num4
+            self.datablocksOTHERSubs = [None] * num4  # type: ignore
             num6 = 0
             while num6 < num4:
                 array[num6] = struct.unpack('<I', self.fileDatas[num3+2 + num6*4 : num3+6 + num6*4])[0]
                 # print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: {array[num6]}")
-                # print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: 0x{self.datablocksOTHER[subIndex].startOffset + array[num6]:X}")
+                # print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: 0x{datablock.startOffset + array[num6]:X}")
                 num6 += 1
 
             num9 = num4 - 2
             num6 = 0
             while num6 <= num9:
-                self.datablocksOTHERSubs[num6] = DataBlock(array[num6], array[num6+1] - array[num6])
+                if self.datablocksOTHERSubs is not None:
+                    self.datablocksOTHERSubs[num6] = DataBlock(array[num6], array[num6+1] - array[num6])
                 num6 += 1
-            self.datablocksOTHERSubs[num6] = DataBlock(array[num6], self.datablocksOTHER[subIndex].length - array[num6])
+            if self.datablocksOTHERSubs is not None:
+                self.datablocksOTHERSubs[num6] = DataBlock(array[num6], datablock.length - array[num6])
 
             # 进度条和列表框更新逻辑占位
             num12 = 0
@@ -939,12 +850,18 @@ class Main:
                 num12 += 1
 
         elif subIndex in (7, 12, 13, 63):
-            num24 = self.datablocksOTHER[subIndex].startOffset + 6
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            num24 = datablock.startOffset + 6
             short_value = struct.unpack('<h', self.fileDatas[num24:num24+2])[0]
             num25 = int(round((short_value - 6) / 4.0 - 1.0))
             num25 = max(0, num25)
             array3 = [0] * num25  # 数组长度匹配C#的num25
-            self.datablocksOTHERSubs = [None] * num25
+            self.datablocksOTHERSubs = [None] * num25  # type: ignore
             num26 = num25 - 1  # 循环上限保持num25-1，与C#一致
             num27 = 0
             while num27 <= num26:
@@ -954,9 +871,11 @@ class Main:
             num29 = len(array3) - 2  # 修正为Python的len()语法
             num27 = 0
             while num27 <= num29:
-                self.datablocksOTHERSubs[num27] = DataBlock(array3[num27], array3[num27+1] - array3[num27])
+                if self.datablocksOTHERSubs is not None:
+                    self.datablocksOTHERSubs[num27] = DataBlock(array3[num27], array3[num27+1] - array3[num27])
                 num27 += 1
-            self.datablocksOTHERSubs[num27] = DataBlock(array3[num27], self.datablocksOTHER[subIndex].length - array3[num27])
+            if self.datablocksOTHERSubs is not None:
+                self.datablocksOTHERSubs[num27] = DataBlock(array3[num27], datablock.length - array3[num27])
 
             # 进度条和列表框更新逻辑占位
             num31 = num25 - 1  # 对应C#的num31 = num25 - 1
@@ -969,22 +888,34 @@ class Main:
                 num32 += 1
 
         elif subIndex in (10, 15):
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
             # 调用BMPMaker生成面部图像
             bmp_maker = BMPMaker()
-            sWidth = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset : self.datablocksOTHER[subIndex].startOffset+2])[0]
-            sHeight = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset+2 : self.datablocksOTHER[subIndex].startOffset+4])[0]
+            sWidth = struct.unpack('<h', self.fileDatas[datablock.startOffset : datablock.startOffset+2])[0]
+            sHeight = struct.unpack('<h', self.fileDatas[datablock.startOffset+2 : datablock.startOffset+4])[0]
             image = bmp_maker.makeFaceBMP(
                 self.fileDatas,
-                self.datablocksOTHER[subIndex].startOffset,
-                self.datablocksOTHER[subIndex].length,
+                datablock.startOffset,
+                datablock.length,
                 ColorPanel(1)  # 使用灰色调色板
             )
             image_path = os.path.join(self.output_dir, f'face_{subIndex}.png')
             image.save(image_path)
 
         elif subIndex in (11, 16, 17, 46, 47, 56, 59, 60, 61, 62, 69, 70, 71, 72, 73, 74, 75, 97, 98, 100):
-            sWidth = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset : self.datablocksOTHER[subIndex].startOffset+2])[0]
-            sHeight = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset+2 : self.datablocksOTHER[subIndex].startOffset+4])[0]
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            sWidth = struct.unpack('<h', self.fileDatas[datablock.startOffset : datablock.startOffset+2])[0]
+            sHeight = struct.unpack('<h', self.fileDatas[datablock.startOffset+2 : datablock.startOffset+4])[0]
             bmp_maker = BMPMaker()
             # 使用资源文件初始化调色板
             # colorpanel = ColorPanel(1)
@@ -995,49 +926,66 @@ class Main:
             image = bmp_maker.makeShapBMP(
                 sWidth, sHeight,
                 self.fileDatas,
-                self.datablocksOTHER[subIndex].startOffset + 4,
-                self.datablocksOTHER[subIndex].length - 4,
+                datablock.startOffset + 4,
+                datablock.length - 4,
                 colorpanel
             )
             image_path = os.path.join(self.output_dir, f'shap_{subIndex}.png')
             image.save(image_path)
 
         elif subIndex == 55:
-            sWidth = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset : self.datablocksOTHER[subIndex].startOffset+2])[0]
-            sHeight = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[subIndex].startOffset+2 : self.datablocksOTHER[subIndex].startOffset+4])[0]
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            sWidth = struct.unpack('<h', self.fileDatas[datablock.startOffset : datablock.startOffset+2])[0]
+            sHeight = struct.unpack('<h', self.fileDatas[datablock.startOffset+2 : datablock.startOffset+4])[0]
             bmp_maker = BMPMaker()
             image = bmp_maker.makeBMP(
                 sWidth, sHeight,
                 self.fileDatas,
-                self.datablocksOTHER[subIndex].startOffset + 4,
-                self.datablocksOTHER[subIndex].length - 4,
+                datablock.startOffset + 4,
+                datablock.length - 4,
                 ColorPanel(1)
             )
             image_path = os.path.join(self.output_dir, f'other_{subIndex}.png')
             image.save(image_path)
         elif subIndex == 79:
-            num3 = self.datablocksOTHER[subIndex].startOffset + 2
-            print(f"解析数据段 subIndex：{subIndex}. 起始地址: 0x{self.datablocksOTHER[subIndex].startOffset:X}")
+            # 添加None检查
+            if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
+                return
+            datablock = self.datablocksOTHER[subIndex]
+            if datablock is None:
+                return
+            num3 = datablock.startOffset + 2
+            print(f"解析数据段 subIndex：{subIndex}. 起始地址: 0x{datablock.startOffset:X}")
             # 从num3 + 4位置开始读取num4
             num4 = struct.unpack('<h', self.fileDatas[num3:num3+2])[0]
             print(f"subIndex: {subIndex}, num4: {num4}")
 
             array = [0] * num4
-            self.datablocksOTHERSubs = [None] * num4
+            self.datablocksOTHERSubs = [None] * num4  # type: ignore
             num6 = 0
             while num6 < num4:
                 array[num6] = struct.unpack('<I', self.fileDatas[num3+6 + num6*4 : num3+10 + num6*4])[0]
-                print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: 0x{self.datablocksOTHER[subIndex].startOffset + array[num6]:X}")
+                print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: 0x{datablock.startOffset + array[num6]:X}")
                 num6 += 1
 
             num9 = num4 - 2
             num6 = 0
             while num6 <= num9:
-                self.datablocksOTHERSubs[num6] = DataBlock(array[num6], array[num6+1] - array[num6])
-                print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: 0x{array[num6]:X}, length: {self.datablocksOTHERSubs[num6].length}")
+                if self.datablocksOTHERSubs is not None:
+                    self.datablocksOTHERSubs[num6] = DataBlock(array[num6], array[num6+1] - array[num6])
+                if self.datablocksOTHERSubs is not None and self.datablocksOTHERSubs[num6] is not None:
+                    datablock_sub = self.datablocksOTHERSubs[num6]
+                    if datablock_sub is not None:
+                        print(f"subIndex: {subIndex}, num6: {num6}, array[num6]: 0x{array[num6]:X}, length: {datablock_sub.length}")
                 num6 += 1
         
-            self.datablocksOTHERSubs[num6] = DataBlock(array[num6], self.datablocksOTHER[subIndex].length - array[num6])
+            if self.datablocksOTHERSubs is not None and num6 < len(self.datablocksOTHERSubs):
+                self.datablocksOTHERSubs[num6] = DataBlock(array[num6], datablock.length - array[num6])
           
         else:
             print(f"未解析数据段 subIndex：{subIndex}. 起始地址: 0x{self.datablocksOTHER[subIndex].startOffset:X}")
@@ -1050,15 +998,25 @@ class Main:
             # print(f"len:{len(self.datablocksOTHERSubs)}, subIndex:{subIndex}")
             for num2 in range(len(self.datablocksOTHERSubs)):
                 if num3 == 1 or num3 == 96:
-                    start_offset = self.datablocksOTHER[num].startOffset + self.datablocksOTHERSubs[num2].startOffset
+                    # 添加None检查
+                    if self.datablocksOTHER[num] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
+                    sWidth = 24  # 默认值
+                    sHeight = 24  # 默认值
                     if num == 96:
                         sWidth = 24
                         sHeight = 24
                     else:
                         # sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
                         # sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
-                        sWidth = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[num].startOffset : self.datablocksOTHER[num].startOffset+2])[0]
-                        sHeight = struct.unpack('<h', self.fileDatas[self.datablocksOTHER[num].startOffset+2 : self.datablocksOTHER[num].startOffset+4])[0]
+                        if datablock is not None and self.fileDatas is not None:
+                            sWidth = struct.unpack('<h', self.fileDatas[datablock.startOffset : datablock.startOffset+2])[0]
+                            sHeight = struct.unpack('<h', self.fileDatas[datablock.startOffset+2 : datablock.startOffset+4])[0]
                     # print(f"subIndex: {subIndex}, num2: {num2:03d}, start_offset: {start_offset}, sWidth: {sWidth}, sHeight: {sHeight}")
 
                     # 生成形状图像                
@@ -1066,17 +1024,27 @@ class Main:
                         sWidth, sHeight,
                         self.fileDatas,
                         start_offset,
-                        self.datablocksOTHERSubs[num2].length,
+                        datablockSub.length,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
                     image.save(image_path)
  
                 if num3 == 2:
-                    start_offset = self.datablocksOTHER[num].startOffset + self.datablocksOTHERSubs[num2].startOffset
+                    # 添加None检查
+                    if self.datablocksOTHER[num] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
                     
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    sWidth = 0  # 默认值
+                    sHeight = 0  # 默认值
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
 
                     data_offset = start_offset + 4
                     
@@ -1085,7 +1053,7 @@ class Main:
                         sWidth, sHeight,
                         self.fileDatas,
                         data_offset,
-                        self.datablocksOTHERSubs[num2].length - 4,
+                        datablockSub.length - 4,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
@@ -1093,22 +1061,39 @@ class Main:
                     
 
                 if num3 == 4:
-                    data_offset = self.datablocksOTHER[num3].startOffset + self.datablocksOTHERSubs[num2].startOffset
+                    # 添加None检查
+                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num3]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    data_offset = datablock.startOffset + datablockSub.startOffset
                     
                     # 生成字体图像                
                     image = self.bmp_maker.makeFontBMP(
                         self.fileDatas,
                         data_offset,
-                        self.datablocksOTHERSubs[num2].length
+                        datablockSub.length
                     )
                     image_path = os.path.join(self.output_dir, f'font_{subIndex}_{num2:03d}.png')
                     image.save(image_path)
                    
                 if num3 == 5:
-                    start_offset = self.datablocksOTHER[num3].startOffset + self.datablocksOTHERSubs[num2].startOffset
+                    # 添加None检查
+                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num3]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
 
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    sWidth = 0  # 默认值
+                    sHeight = 0  # 默认值
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
 
                     # print(f"subIndex: {subIndex}, num2: {num2:03d}, start_offset: {start_offset}, sWidth: {sWidth}, sHeight: {sHeight}, data_offset: {start_offset}")
                     if num2 < 20:
@@ -1118,17 +1103,21 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
                     elif num2 < 23:
                         data_offset = start_offset
+                        if self.fileDatas is not None and data_offset + 4 <= len(self.fileDatas):
+                            sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
+                        # 生成面部图像                
                         image = self.bmp_maker.makeFaceBMP(
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length,
+                            datablockSub.length,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'face_{subIndex}_{num2:03d}.png')
@@ -1140,7 +1129,7 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
@@ -1150,7 +1139,7 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             start_offset + 4,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
@@ -1162,7 +1151,7 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
@@ -1170,13 +1159,14 @@ class Main:
                     elif num2 != 59:
                         if num2 < 119 and num2 != 93:
                             data_offset = start_offset
-                            sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
-                            sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
+                            if self.fileDatas is not None and data_offset + 4 <= len(self.fileDatas):
+                                sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
+                                sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
                             # 生成面部图像                
                             image = self.bmp_maker.makeFaceBMP(
                                 self.fileDatas,
                                 data_offset,
-                                self.datablocksOTHERSubs[num2].length,
+                                datablockSub.length,
                                 ColorPanel(1)
                             )
                             image_path = os.path.join(self.output_dir, f'face_{subIndex}_{num2:03d}.png')
@@ -1186,16 +1176,26 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             start_offset + 4,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                             )
                             image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
                             image.save(image_path)
 
                 if num3 == 7:
-                    start_offset = self.datablocksOTHER[num].startOffset + self.datablocksOTHERSubs[num2].startOffset
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    # 添加None检查
+                    if self.datablocksOTHER[num] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
+                    sWidth = 0  # 默认值
+                    sHeight = 0  # 默认值
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
                     color_panel = ColorPanel(3)  # Create new color panel with ID 3
                     data_offset = start_offset + 4
                     # print(f"subIndex: {subIndex}, num2: {num2:03d}, start_offset: {start_offset}, sWidth: {sWidth}, sHeight: {sHeight}, data_offset: {data_offset}")
@@ -1204,26 +1204,36 @@ class Main:
                         sWidth, sHeight,
                         self.fileDatas,
                         data_offset,
-                        self.datablocksOTHERSubs[num2].length - 4,
+                        datablockSub.length - 4,
                         color_panel
                     )
                     image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
                     image.save(image_path)
 
                 if num3 in (6, 9):
-                    start_offset = self.datablocksOTHER[num3].startOffset + self.datablocksOTHERSubs[num2].startOffset
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
-                    if num2 != 125:
-                        data_offset = start_offset
-                    sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
+                    # 添加None检查
+                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num3]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
+                    sWidth = 0  # 默认值
+                    sHeight = 0  # 默认值
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    data_offset = start_offset
+                    if self.fileDatas is not None and data_offset + 2 <= len(self.fileDatas) and data_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
                 
                     # 生成面部图像                
                     image = self.bmp_maker.makeFaceBMP(
                         self.fileDatas,
                         data_offset,
-                        self.datablocksOTHERSubs[num2].length,
+                        datablockSub.length,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'face_{subIndex}_{num2:03d}.png')
@@ -1231,9 +1241,19 @@ class Main:
                    
 
                 if num3 in (12, 63):
-                    start_offset = self.datablocksOTHER[num3].startOffset + self.datablocksOTHERSubs[num2].startOffset
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    # 添加None检查
+                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num3]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
+                    sWidth = 0  # 默认值
+                    sHeight = 0  # 默认值
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
                     
                     if num2 == 0 or (num2 >= 23 and num2 <= 29):
                         data_offset = start_offset + 4
@@ -1242,32 +1262,33 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
                     elif num2 == 1 or num2 == 2 or (num2 >= 11 and num2 < 22):
                         data_offset = start_offset
-                        sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
-                        sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
+                        if self.fileDatas is not None and data_offset + 2 <= len(self.fileDatas) and data_offset + 4 <= len(self.fileDatas):
+                            sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
                         # 生成面部图像                    
                         image = self.bmp_maker.makeFaceBMP(
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length,
+                            datablockSub.length,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'face_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
-                    elif num2 != 22:
+                    else:
                         data_offset = start_offset + 4
                         # 生成其他类型图像                    
                         image = self.bmp_maker.makeBMP(
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
@@ -1275,9 +1296,19 @@ class Main:
                     
 
                 if num3 == 13:
-                    start_offset = self.datablocksOTHER[num3].startOffset + self.datablocksOTHERSubs[num2].startOffset
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    # 添加None检查
+                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num3]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
+                    sWidth = 0  # 默认值
+                    sHeight = 0  # 默认값
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
                     
                     if num2 == 0:
                         data_offset = start_offset + 4
@@ -1286,20 +1317,21 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
                     elif num2 == 1 or num2 == 2 or num2 >= 11:
                         data_offset = start_offset
-                        sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
-                        sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
+                        if self.fileDatas is not None and data_offset + 2 <= len(self.fileDatas) and data_offset + 4 <= len(self.fileDatas):
+                            sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
                         # 生成面部图像                    
                         image = self.bmp_maker.makeFaceBMP(
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length,
+                            datablockSub.length,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'face_{subIndex}_{num2:03d}.png')
@@ -1311,7 +1343,7 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
@@ -1319,9 +1351,19 @@ class Main:
                     
 
                 if num3 == 14:
-                    start_offset = self.datablocksOTHER[num].startOffset + self.datablocksOTHERSubs[num2].startOffset
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    # 添加None检查
+                    if self.datablocksOTHER[num] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
+                    sWidth = 0  # 默认값
+                    sHeight = 0  # 默认값
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
                     
                     if num2 == 0 or num2 >= 23:
                         data_offset = start_offset + 4
@@ -1330,20 +1372,21 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'shap_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
                     elif num2 == 1 or num2 == 2 or (num2 >= 11 and num2 < 23):
                         data_offset = start_offset
-                        sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
-                        sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
+                        if self.fileDatas is not None and data_offset + 2 <= len(self.fileDatas) and data_offset + 4 <= len(self.fileDatas):
+                            sWidth = struct.unpack('<h', self.fileDatas[data_offset:data_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.fileDatas[data_offset+2:data_offset+4])[0]
                         # 生成面部图像                    
                         image = self.bmp_maker.makeFaceBMP(
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length,
+                            datablockSub.length,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'face_{subIndex}_{num2:03d}.png')
@@ -1355,17 +1398,27 @@ class Main:
                             sWidth, sHeight,
                             self.fileDatas,
                             data_offset,
-                            self.datablocksOTHERSubs[num2].length - 4,
+                            datablockSub.length - 4,
                             ColorPanel(1)
                         )
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
 
                 if num3 == 79:
-                    start_offset = self.datablocksOTHER[num3].startOffset + self.datablocksOTHERSubs[num2].startOffset
+                    # 添加None检查
+                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                        continue
+                    datablock = self.datablocksOTHER[num3]
+                    datablockSub = self.datablocksOTHERSubs[num2]
+                    if datablock is None or datablockSub is None:
+                        continue
+                    start_offset = datablock.startOffset + datablockSub.startOffset
 
-                    sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                    sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                    sWidth = 0  # 默认값
+                    sHeight = 0  # 默认값
+                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
 
                     # print(f"subIndex: {subIndex}, num2: {num2:03d}, start_offset: {start_offset}, sWidth: {sWidth}, sHeight: {sHeight}, data_offset: {start_offset}")
                     
@@ -1375,66 +1428,123 @@ class Main:
                         sWidth, sHeight,
                         self.fileDatas,
                         data_offset,
-                        self.datablocksOTHERSubs[num2].length - 4,
+                        datablockSub.length - 4,
                         ColorPanel(1)
                     )
                     image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
                     image.save(image_path)
 
-    def AnalysisTXT(self):
-        """分析FDTXT数据结构"""
-        array = [0] * 35
+    def AnalysisFDSHAP(self):
+        if self.fileDatasFDSHAP is None:
+            return
+        array = [0] * 67
         num = 6
-        while num <= 142:
+        while num <= 270:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            if num + 4 <= len(self.fileDatasFDSHAP):
+                array[index] = struct.unpack('<I', self.fileDatasFDSHAP[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
         num5 = 0
         while num5 <= num4:
-            self.TXTsubBlockCount[num5] = int(struct.unpack('<h', self.fileDatas[array[num5]:array[num5]+2])[0] / 2)
-            num8 = self.TXTsubBlockCount[num5] - 1
-            array2 = [0] * (num8 + 1)
+            if array[num5] + 6 <= len(self.fileDatasFDSHAP):
+                self.subBlockCountsFDSHAP[num5] = struct.unpack('<h', self.fileDatasFDSHAP[array[num5]+4 : array[num5]+6])[0]
+            subBlockCount = self.subBlockCountsFDSHAP[num5] - 1
+            array2 = [0] * (subBlockCount + 1)
             num9 = 0
-            while num9 <= num8:
-                array2[num9] = array[num5] + struct.unpack('<h', self.fileDatas[array[num5] + num9*2 : array[num5] + (num9+1)*2])[0]
+            while num9 <= subBlockCount:
+                if array[num5] + 10 + num9*4 <= len(self.fileDatasFDSHAP):
+                    array2[num9] = array[num5] + struct.unpack('<I', self.fileDatasFDSHAP[array[num5]+6+num9*4 : array[num5]+10+num9*4])[0]
                 num9 += 1
 
-            num11 = self.TXTsubBlockCount[num5] - 2
+            subBlockIndexMax = self.subBlockCountsFDSHAP[num5] - 2
             num9 = 0
-            while num9 <= num11:
-                # 确保不会越界
-                if num5 < len(self.datablocksTXT) and num9 < len(self.datablocksTXT[num5]):
-                    self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
+            while num9 <= subBlockIndexMax:
+                if num5 < len(self.datablocksFDSHAP) and num9 < len(self.datablocksFDSHAP[num5]):
+                    self.datablocksFDSHAP[num5][num9] = DataBlock(array2[num9], array2[num9+1] - array2[num9])
                 num9 += 1
+            if num5 < len(self.datablocksFDSHAP) and num9 < len(self.datablocksFDSHAP[num5]):
+                self.datablocksFDSHAP[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
+            num5 += 2
+
+        # 进度条和列表框更新逻辑占位
+        progress_max = 66
+        mainBlockIndex = 0
+        while mainBlockIndex <= 66:
+            subBlockCount = self.subBlockCountsFDSHAP[mainBlockIndex] - 1
+            subBlockIndex = 0
+            while subBlockIndex <= subBlockCount:
+                text = f"ID:{mainBlockIndex:03d}-{subBlockIndex:04d}"
+                # ListBoxImages.Items.Add(text)  # UI操作占位
+                subBlockIndex += 1
+            if mainBlockIndex % 10 == 0:
+                pass  # 进度条更新占位
+            mainBlockIndex += 1
+        self.shapsDone = True
+
+    def AnalysisTXT(self):
+        """分析FDTXT数据结构"""
+        if self.fileDatas is None:
+            return
+        array = [0] * 35
+        num = 6
+        while num <= 142:
+            index = int((num - 6) / 4)
+            if num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            num += 4
+
+        num4 = len(array) - 2
+        mainBlockIndex = 0
+        while mainBlockIndex <= num4:
+            if array[mainBlockIndex] + 2 <= len(self.fileDatas):
+                self.subBlockCountsTXT[mainBlockIndex] = int(struct.unpack('<h', self.fileDatas[array[mainBlockIndex]:array[mainBlockIndex]+2])[0] / 2)
+            subBlockCount = self.subBlockCountsTXT[mainBlockIndex] - 1
+            array2 = [0] * (subBlockCount + 1)
+            subBlockIndex = 0
+            while subBlockIndex <= subBlockCount:
+                if array[mainBlockIndex] + (subBlockIndex+1)*2 <= len(self.fileDatas):
+                    array2[subBlockIndex] = array[mainBlockIndex] + struct.unpack('<h', self.fileDatas[array[mainBlockIndex] + subBlockIndex*2 : array[mainBlockIndex] + (subBlockIndex+1)*2])[0]
+                subBlockIndex += 1
+
+            subBlockIndexMax = self.subBlockCountsTXT[mainBlockIndex] - 2
+            subBlockIndex = 0
+            while subBlockIndex <= subBlockIndexMax:
+                # 确保不会越界
+                if mainBlockIndex < len(self.datablocksTXT) and subBlockIndex < len(self.datablocksTXT[mainBlockIndex]):
+                    self.datablocksTXT[mainBlockIndex][subBlockIndex] = DataBlock(array2[subBlockIndex], array2[subBlockIndex+1] - array2[subBlockIndex])
+                subBlockIndex += 1
             # 处理最后一个数据块
-            if num5 < len(self.datablocksTXT) and num9 < len(self.datablocksTXT[num5]):
-                self.datablocksTXT[num5][num9] = DataBlock(array2[num9], array[num5+1] - array2[num9])
-            num5 += 1
+            if mainBlockIndex < len(self.datablocksTXT) and subBlockIndex < len(self.datablocksTXT[mainBlockIndex]):
+                self.datablocksTXT[mainBlockIndex][subBlockIndex] = DataBlock(array2[subBlockIndex], array[mainBlockIndex+1] - array2[subBlockIndex])
+            mainBlockIndex += 1
 
         # 进度条和列表框更新逻辑占位
         progress_max = 34
-        num13 = 0
-        while num13 <= 33:
-            if num13 < len(self.TXTsubBlockCount):
-                num14 = self.TXTsubBlockCount[num13] - 1
-                num15 = 0
-                while num15 <= num14:
-                    text = f"ID:{num13:04d}-{num15:04d}"
+        mainBlockIndex = 0
+        while mainBlockIndex <= 33:
+            if mainBlockIndex < len(self.subBlockCountsTXT):
+                subBlockCount = self.subBlockCountsTXT[mainBlockIndex] - 1
+                subBlockIndex = 0
+                while subBlockIndex <= subBlockCount:
+                    text = f"ID:{mainBlockIndex:04d}-{subBlockIndex:04d}"
                     # ListBoxImages.Items.Add(text)  # UI操作占位
-                    num15 += 1
-            if num13 % 30 == 0:
+                    subBlockIndex += 1
+            if mainBlockIndex % 30 == 0:
                 pass  # 进度条更新占位
-            num13 += 1
+            mainBlockIndex += 1
 
     def AnalysisDATO(self):
         """分析DATO数据结构"""
+        if self.fileDatas is None:
+            return
         array = [0] * 137
         num = 6
         while num <= 550:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            if num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
@@ -1443,62 +1553,71 @@ class Main:
             array2 = [0] * 4
             num8 = 0
             while num8 <= 3:
-                array2[num8] = array[num5] + struct.unpack('<I', self.fileDatas[array[num5] + num8*4 : array[num5] + (num8+1)*4])[0]
+                if array[num5] + (num8+1)*4 <= len(self.fileDatas):
+                    array2[num8] = array[num5] + struct.unpack('<I', self.fileDatas[array[num5] + num8*4 : array[num5] + (num8+1)*4])[0]
                 num8 += 1
 
             num8 = 0
             while num8 <= 2:
                 # 确保不会越界
-                if num5 < len(self.dataBlocksDATO) and num8 < len(self.dataBlocksDATO[num5]):
-                    self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array2[num8+1] - array2[num8])
+                if num5 < len(self.datablocksDATO) and num8 < len(self.datablocksDATO[num5]):
+                    self.datablocksDATO[num5][num8] = DataBlock(array2[num8], array2[num8+1] - array2[num8])
                 num8 += 1
             # 处理最后一个数据块
-            if num5 < len(self.dataBlocksDATO) and num8 < len(self.dataBlocksDATO[num5]):
-                self.dataBlocksDATO[num5][num8] = DataBlock(array2[num8], array[num5+1] - array2[num8])
+            if num5 < len(self.datablocksDATO) and num8 < len(self.datablocksDATO[num5]):
+                self.datablocksDATO[num5][num8] = DataBlock(array2[num8], array[num5+1] - array2[num8])
             num5 += 1
 
     def AnalysisBG(self):
         """分析BG数据结构"""
+        if self.fileDatas is None:
+            return
         array = [0] * 57
         num = 6
         while num <= 230:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            if num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
         num5 = 0
         while num5 <= num4:
             # 确保不会越界
-            if num5 < len(self.dataBlocksBG):
-                self.dataBlocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            if num5 < len(self.datablocksBG):
+                self.datablocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
         # 处理最后一个数据块
-        if num5 < len(self.dataBlocksBG):
-            self.dataBlocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        if num5 < len(self.datablocksBG):
+            self.datablocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
 
     def AnalysisTAI(self):
         """分析TAI数据结构（专用）"""
+        if self.fileDatas is None:
+            return
         array = [0] * 57
         num = 6
         while num <= 230:
             index = int((num - 6) / 4)
-            array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            if num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
         num4 = len(array) - 2
         num5 = 0
         while num5 <= num4:
             # 确保不会越界
-            if num5 < len(self.dataBlocksBG):
-                self.dataBlocksBG[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            if num5 < len(self.datablocksTAI):
+                self.datablocksTAI[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
         # 处理最后一个数据块
-        if num5 < len(self.dataBlocksBG):
-            self.dataBlocksBG[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        if num5 < len(self.datablocksTAI):
+            self.datablocksTAI[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
 
     def AnalysisFIGANI(self):
         """分析FIGANI数据结构"""
+        if self.fileDatas is None:
+            return
         array = [0] * 409
         num = 6
         while num <= 1638 and num < len(self.fileDatas) - 3:
@@ -1510,15 +1629,15 @@ class Main:
 
         num4 = len(array) - 2
         num5 = 0
-        while num5 <= num4 and num5 < len(self.FIGANIsubBlockCount):
+        while num5 <= num4 and num5 < len(self.subBlockCountsFIGANI):
             # 确保数组索引在有效范围内
             if num5 < len(array) and array[num5] < len(self.fileDatas) and array[num5] > 0:
-                self.FIGANIsubBlockCount[num5] = self.fileDatas[array[num5]]
+                self.subBlockCountsFIGANI[num5] = self.fileDatas[array[num5]]
             else:
-                self.FIGANIsubBlockCount[num5] = 0
+                self.subBlockCountsFIGANI[num5] = 0
             
-            if self.FIGANIsubBlockCount[num5] > 0:
-                num8 = self.FIGANIsubBlockCount[num5] - 1
+            if self.subBlockCountsFIGANI[num5] > 0:
+                num8 = self.subBlockCountsFIGANI[num5] - 1
                 # 确保数组大小合理
                 if num8 >= 0 and num8 < 100:  # 设置合理的上限
                     array2 = [0] * (num8 + 1)
@@ -1535,18 +1654,18 @@ class Main:
                             array2[num9] = array[num5] + 1 + num9*4  # 默认值
                         num9 += 1
 
-                    num11 = self.FIGANIsubBlockCount[num5] - 2
+                    num11 = self.subBlockCountsFIGANI[num5] - 2
                     num9 = 0
-                    while num9 <= num11 and num5 < len(self.dataBlocksFIGANI) and num9 < len(self.dataBlocksFIGANI[num5]):
+                    while num9 <= num11 and num5 < len(self.datablocksFIGANI) and num9 < len(self.datablocksFIGANI[num5]):
                         # 确保不会越界
                         if (num9 + 1) < len(array2):
                             length = array2[num9+1] - array2[num9]
                             if length > 0 and array2[num9] < len(self.fileDatas):
-                                self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+                                self.datablocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
                         num9 += 1
                     
                     # 处理最后一个数据块
-                    if num9 < len(self.dataBlocksFIGANI[num5]) and num9 > 0:
+                    if num9 < len(self.datablocksFIGANI[num5]) and num9 > 0:
                         if (num5 + 1) < len(array) and array[num5+1] < len(self.fileDatas) and array[num5+1] > 0:
                             # 使用下一个主块的起始位置计算长度
                             length = array[num5+1] - array2[num9]
@@ -1554,8 +1673,8 @@ class Main:
                             # 对于最后一个主块，使用文件长度计算
                             length = len(self.fileDatas) - array2[num9]
                         if length > 0 and array2[num9] < len(self.fileDatas):
-                            self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
-                    elif num9 < len(self.dataBlocksFIGANI[num5]) and num9 == 0:
+                            self.datablocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+                    elif num9 < len(self.datablocksFIGANI[num5]) and num9 == 0:
                         # 处理只有一个子帧的情况
                         if (num5 + 1) < len(array) and array[num5+1] < len(self.fileDatas) and array[num5+1] > 0:
                             # 使用下一个主块的起始位置计算长度
@@ -1564,17 +1683,17 @@ class Main:
                             # 对于最后一个主块，使用文件长度计算
                             length = len(self.fileDatas) - array2[num9]
                         if length > 0 and array2[num9] < len(self.fileDatas):
-                            self.dataBlocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
+                            self.datablocksFIGANI[num5][num9] = DataBlock(array2[num9], length)
             num5 += 1
 
         # 进度条和列表框更新逻辑占位
         progress_max = 408
         num13 = 0
-        while num13 <= 407 and num13 < len(self.FIGANIsubBlockCount):
-            if self.FIGANIsubBlockCount[num13] > 0:
-                num14 = self.FIGANIsubBlockCount[num13] - 1
+        while num13 <= 407 and num13 < len(self.subBlockCountsFIGANI):
+            if self.subBlockCountsFIGANI[num13] > 0:
+                num14 = self.subBlockCountsFIGANI[num13] - 1
                 num15 = 0
-                while num15 <= num14 and num13 < len(self.dataBlocksFIGANI) and num15 < len(self.dataBlocksFIGANI[num13]):
+                while num15 <= num14 and num13 < len(self.datablocksFIGANI) and num15 < len(self.datablocksFIGANI[num13]):
                     text = f"ID:{num13:04d}-{num15:03d}"
                     # ListBoxImages.Items.Add(text)  # UI操作占位
                     num15 += 1

@@ -8,14 +8,6 @@ class FD2Analyzer(Main):
     
     def __init__(self):
         super().__init__()
-        self.dataBlocksBG: List[Optional[DataBlock]] = [None] * 57
-        self.dataBlocksDATO: List[List[Optional[DataBlock]]] = [[None for _ in range(4)] for _ in range(137)]
-        self.dataBlocksFDSHAP: List[List[Optional[DataBlock]]] = [[None for _ in range(401)] for _ in range(67)]
-        self.FDSHAPsubBlockCount: List[int] = [0] * 67
-        self.dataBlocksFIGANI: List[List[Optional[DataBlock]]] = [[None for _ in range(41)] for _ in range(409)]
-        self.FIGANIsubBlockCount: List[int] = [0] * 409
-        self.datablocksTXT: List[List[Optional[DataBlock]]] = [[None for _ in range(701)] for _ in range(35)]
-        self.TXTsubBlockCount: List[int] = [0] * 35
         self.shapFileDatas = None
         
         # C#源码中的wordList数组
@@ -209,23 +201,28 @@ class FD2Analyzer(Main):
         """提取指定主索引的文本内容"""
         try:
             text_parts = []
-            sub_block_count = self.TXTsubBlockCount[main_index]
+            # 修复变量名不一致的问题
+            if main_index < len(self.subBlockCountsTXT):
+                sub_block_count = self.subBlockCountsTXT[main_index]
+            else:
+                sub_block_count = 0
             
             for j in range(sub_block_count):
-                if self.datablocksTXT[main_index][j]:
-                    block = self.datablocksTXT[main_index][j]
-                    start_offset = block.startOffset
-                    length = block.length
-                    
-                    # 确保偏移量和长度有效
-                    if start_offset >= 0 and length > 0 and start_offset + length <= len(self.fileDatas):
-                        # 使用makeWord函数解析文本
-                        try:
-                            parsed_text = self.makeWord(self.fileDatas, start_offset, int(length / 2 - 1))
-                            if parsed_text:
-                                text_parts.append(f"[SubIndex {j}]\n{parsed_text}\n")
-                        except Exception as e:
-                            print(f"解析主索引{main_index}子索引{j}时出错: {e}")
+                if main_index < len(self.datablocksTXT) and j < len(self.datablocksTXT[main_index]):
+                    if self.datablocksTXT[main_index][j]:
+                        block = self.datablocksTXT[main_index][j]
+                        start_offset = block.startOffset
+                        length = block.length
+                        
+                        # 确保偏移量和长度有效
+                        if start_offset >= 0 and length > 0 and self.fileDatas is not None and start_offset + length <= len(self.fileDatas):
+                            # 使用makeWord函数解析文本
+                            try:
+                                parsed_text = self.makeWord(self.fileDatas, start_offset, int(length / 2 - 1))
+                                if parsed_text:
+                                    text_parts.append(f"[SubIndex {j}]\n{parsed_text}\n")
+                            except Exception as e:
+                                print(f"解析主索引{main_index}子索引{j}时出错: {e}")
                         
             return "\n".join(text_parts)
         except Exception as e:
@@ -378,7 +375,13 @@ class FD2Analyzer(Main):
         # 提取文本内容
         total_texts = 0
         for i in range(len(self.datablocksTXT)):
-            if self.TXTsubBlockCount[i] > 0:
+            # 修复变量名不一致的问题
+            if i < len(self.subBlockCountsTXT):
+                sub_block_count = self.subBlockCountsTXT[i]
+            else:
+                sub_block_count = 0
+                
+            if sub_block_count > 0:
                 try:
                     # 创建文本输出目录
                     txt_output_dir = os.path.join(self.output_dir, 'fdtxt')
@@ -404,28 +407,29 @@ class FD2Analyzer(Main):
             self.fileDatas = f.read()
         
         self.AnalysisDATO()
-        print(f'DATO分析完成，共{len(self.dataBlocksDATO)}个数据块')
+        print(f'DATO分析完成，共{len(self.datablocksDATO)}个数据块')
         
         # 生成表情图像
         success_count = 0
-        for i in range(len(self.dataBlocksDATO)):
-            for j in range(len(self.dataBlocksDATO[i])):
+        for i in range(len(self.datablocksDATO)):
+            for j in range(len(self.datablocksDATO[i])):
                 # 检查数据块是否存在且有效
-                data_block = self.dataBlocksDATO[i][j]
-                if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
-                    try:
-                        # 使用makeFaceBMP方法处理DATO文件，从数据中读取宽度和高度
-                        image = self.bmp_maker.makeFaceBMP(
-                            self.fileDatas,
-                            data_block.startOffset,
-                            data_block.length,
-                            ColorPanel(1)
-                        )
-                        image_path = os.path.join(self.output_dir, f'dato_{i:05d}_{j:02d}.png')
-                        image.save(image_path)
-                        success_count += 1
-                    except Exception as e:
-                        print(f'DATO表情{i}-{j}处理失败: {e}')
+                if i < len(self.datablocksDATO) and j < len(self.datablocksDATO[i]):
+                    data_block = self.datablocksDATO[i][j]
+                    if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
+                        try:
+                            # 使用makeFaceBMP方法处理DATO文件，从数据中读取宽度和高度
+                            image = self.bmp_maker.makeFaceBMP(
+                                self.fileDatas,
+                                data_block.startOffset,
+                                data_block.length,
+                                ColorPanel(1)
+                            )
+                            image_path = os.path.join(self.output_dir, f'dato_{i:05d}_{j:02d}.png')
+                            image.save(image_path)
+                            success_count += 1
+                        except Exception as e:
+                            print(f'DATO表情{i}-{j}处理失败: {e}')
         print(f'成功提取{success_count}个DATO表情')
         
     def load_bg_file(self, file_path):
@@ -435,13 +439,13 @@ class FD2Analyzer(Main):
             self.fileDatas = f.read()
         
         self.AnalysisBG()
-        print(f'BG分析完成，共{len(self.dataBlocksBG)}个背景')
+        print(f'BG分析完成，共{len(self.datablocksBG)}个背景')
         
         # 生成背景图像
         success_count = 0
-        for i in range(len(self.dataBlocksBG)):
+        for i in range(len(self.datablocksBG)):
             # 检查数据块是否存在且有效
-            data_block = self.dataBlocksBG[i]
+            data_block = self.datablocksBG[i]
             if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                 try:
                     # 使用makeBgBMP方法处理BG文件，从数据中读取宽度和高度
@@ -466,13 +470,13 @@ class FD2Analyzer(Main):
         
         # 使用TAI专用的分析方法
         self.AnalysisTAI()  # TAI.DAT使用专用的索引结构分析方法
-        print(f'TAI分析完成，共{len(self.dataBlocksBG)}个数据块')
+        print(f'TAI分析完成，共{len(self.datablocksTAI)}个数据块')
         
         # 生成图像
         success_count = 0
-        for i in range(len(self.dataBlocksBG)):
+        for i in range(len(self.datablocksTAI)):
             # 检查数据块是否存在且有效
-            data_block = self.dataBlocksBG[i]
+            data_block = self.datablocksTAI[i]
             if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
                 try:
                     # 使用TAI专用的图像生成方法处理TAI文件，从数据中读取宽度和高度
@@ -496,12 +500,17 @@ class FD2Analyzer(Main):
             self.fileDatas = f.read()
         
         self.AnalysisFIGANI()
-        print(f'FIGANI分析完成，共{len(self.dataBlocksFIGANI)}个主分类')
+        print(f'FIGANI分析完成，共{len(self.datablocksFIGANI)}个主分类')
         
         # 生成动作序列图像
         total_sequences = 0
-        for i in range(len(self.dataBlocksFIGANI)):
-            sub_block_count = self.FIGANIsubBlockCount[i]
+        for i in range(len(self.datablocksFIGANI)):
+            # 修复变量名不一致的问题
+            if i < len(self.subBlockCountsFIGANI):
+                sub_block_count = self.subBlockCountsFIGANI[i]
+            else:
+                sub_block_count = 0
+                
             if sub_block_count > 0:
                 print(f'处理动作序列{i:04d}，包含{sub_block_count}帧')
                 sequence_dir = os.path.join(self.output_dir, f'figani_{i:04d}')
@@ -510,21 +519,22 @@ class FD2Analyzer(Main):
                 success_count = 0
                 for j in range(sub_block_count):
                     # 检查数据块是否存在且有效
-                    data_block = self.dataBlocksFIGANI[i][j]
-                    if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
-                        try:
-                            # 使用makeFightBMP方法处理FIGANI文件，从数据中读取宽度和高度
-                            image = self.bmp_maker.makeFightBMP(
-                                self.fileDatas,
-                                data_block.startOffset,
-                                data_block.length,
-                                ColorPanel(1)
-                            )
-                            image_path = os.path.join(sequence_dir, f'frame_{j:03d}.png')
-                            image.save(image_path)
-                            success_count += 1
-                        except Exception as e:
-                            print(f'FIGANI动作序列{i:04d}帧{j:03d}处理失败: {e}')
+                    if i < len(self.datablocksFIGANI) and j < len(self.datablocksFIGANI[i]):
+                        data_block = self.datablocksFIGANI[i][j]
+                        if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
+                            try:
+                                # 使用makeFightBMP方法处理FIGANI文件，从数据中读取宽度和高度
+                                image = self.bmp_maker.makeFightBMP(
+                                    self.fileDatas,
+                                    data_block.startOffset,
+                                    data_block.length,
+                                    ColorPanel(1)
+                                )
+                                image_path = os.path.join(sequence_dir, f'frame_{j:03d}.png')
+                                image.save(image_path)
+                                success_count += 1
+                            except Exception as e:
+                                print(f'FIGANI动作序列{i:04d}帧{j:03d}处理失败: {e}')
                 print(f'  动作序列{i:04d}: 成功提取{success_count}帧')
                 total_sequences += 1
         print(f'成功处理{total_sequences}个FIGANI动作序列')
