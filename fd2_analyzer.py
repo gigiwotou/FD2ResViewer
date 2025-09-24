@@ -296,6 +296,9 @@ class FD2Analyzer(Main):
         elif 'figani.dat' in file_name:
             print('分析FIGANI.DAT文件...')
             self.load_figani_file(file_path)
+        elif 'fdshap.dat' in file_name:
+            print('分析FDSHAP.DAT文件...')
+            self.load_fdshap_file(file_path)
         else:
             print(f'暂不支持的文件类型: {file_name}')
             print('当前支持的文件类型:')
@@ -561,6 +564,65 @@ class FD2Analyzer(Main):
                 print(f'处理主分类{subIndex}时出错: {e}')
         print(f'成功处理{total_processed}个FDOTHER主分类')
 
+    def load_fdshap_file(self, file_path):
+        """分析FDSHAP.DAT文件 - 形状资源"""
+        print("分析FDSHAP.DAT文件...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+            # 设置FDSHAP专用文件数据属性
+            self.fileDatasFDSHAP = self.fileDatas
+        
+        # 使用AnalysisFDSHAP进行文件分析
+        self.AnalysisFDSHAP()
+        print(f'FDSHAP分析完成，共{len(self.datablocksFDSHAP)}个主分类')
+        
+        # 处理所有子索引并生成图像
+        total_processed = 0
+        success_count = 0
+        
+        # 创建FDSHAP输出目录
+        fdshap_output_dir = os.path.join(self.output_dir, 'fdshap')
+        os.makedirs(fdshap_output_dir, exist_ok=True)
+        
+        for main_index in range(len(self.datablocksFDSHAP)):
+            try:
+                if main_index < len(self.subBlockCountsFDSHAP):
+                    sub_block_count = self.subBlockCountsFDSHAP[main_index]
+                    if sub_block_count > 0:
+                        # 为每个主分类创建单独的目录
+                        main_class_dir = os.path.join(fdshap_output_dir, f'fdshap_{main_index:03d}')
+                        os.makedirs(main_class_dir, exist_ok=True)
+                        
+                        for sub_index in range(sub_block_count):
+                            # 检查数据块是否存在且有效
+                            if main_index < len(self.datablocksFDSHAP) and sub_index < len(self.datablocksFDSHAP[main_index]):
+                                data_block = self.datablocksFDSHAP[main_index][sub_index]
+                                if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
+                                    try:
+                                        # 使用固定的尺寸24x24，因为FDSHAP通常是固定尺寸的形状资源
+                                        width, height = 24, 24
+                                        
+                                        # 确保尺寸在合理范围内
+                                        if 1 <= width <= 1000 and 1 <= height <= 1000:
+                                            # 使用makeShapBMP方法处理FDSHAP文件
+                                            image = self.bmp_maker.makeShapBMP(
+                                                width, height,
+                                                self.fileDatas,
+                                                data_block.startOffset,
+                                                data_block.length,
+                                                ColorPanel(1)
+                                            )
+                                            # 将图像保存到主分类的单独目录中
+                                            image_path = os.path.join(main_class_dir, f'fdshap_{main_index:03d}_{sub_index:04d}.png')
+                                            image.save(image_path)
+                                            success_count += 1
+                                    except Exception as e:
+                                        print(f'FDSHAP主分类{main_index}子索引{sub_index}图像生成失败: {e}')
+                total_processed += 1
+                print(f'处理主分类{main_index}完成')
+            except Exception as e:
+                print(f'处理主分类{main_index}时出错: {e}')
+        print(f'成功处理{total_processed}个FDSHAP主分类，生成{success_count}个图像文件')
 
 def main():
     """主函数，支持命令行参数解析"""
