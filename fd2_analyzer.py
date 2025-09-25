@@ -581,8 +581,7 @@ class FD2Analyzer(Main):
         success_count = 0
         
         # 创建FDSHAP输出目录
-        fdshap_output_dir = os.path.join(self.output_dir, 'fdshap')
-        os.makedirs(fdshap_output_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
         
         for main_index in range(len(self.datablocksFDSHAP)):
             try:
@@ -590,7 +589,7 @@ class FD2Analyzer(Main):
                     sub_block_count = self.subBlockCountsFDSHAP[main_index]
                     if sub_block_count > 0:
                         # 为每个主分类创建单独的目录
-                        main_class_dir = os.path.join(fdshap_output_dir, f'fdshap_{main_index:03d}')
+                        main_class_dir = os.path.join(self.output_dir, f'fdshap_{main_index:03d}')
                         os.makedirs(main_class_dir, exist_ok=True)
                         
                         for sub_index in range(sub_block_count):
@@ -624,6 +623,16 @@ class FD2Analyzer(Main):
                 print(f'处理主分类{main_index}时出错: {e}')
         print(f'成功处理{total_processed}个FDSHAP主分类，生成{success_count}个图像文件')
 
+    def load_fdfield_file(self, file_path):
+        """分析FDFIELD.DAT文件 - 地图资源"""
+        print("分析FDFIELD.DAT文件...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用AnalysisFDFIELD进行文件分析
+        self.AnalysisFDFIELD()
+        print(f'FDFIELD分析完成，共{len(self.datablocksFDFIELD)}个主分类')
+        
 def main():
     """主函数，支持命令行参数解析"""
     import argparse
