@@ -299,6 +299,9 @@ class FD2Analyzer(Main):
         elif 'fdshap.dat' in file_name:
             print('分析FDSHAP.DAT文件...')
             self.load_fdshap_file(file_path)
+        elif 'fdfield.dat' in file_name:
+            print('分析FDFIELD.DAT文件...')
+            self.load_fdfield_file(file_path)
         else:
             print(f'暂不支持的文件类型: {file_name}')
             print('当前支持的文件类型:')
@@ -309,12 +312,14 @@ class FD2Analyzer(Main):
             print('- FDTXT.DAT (文本资源)')
             print('- TAI.DAT (战斗动作图像)')
             print('- FIGANI.DAT (战斗动作序列)')
+            print('- FDSHAP.DAT (形状资源)')
+            print('- FDFIELD.DAT (地图资源)')
             return False
         return True
         
     def batch_analyze(self, directory):
         """批量分析目录中的所有支持文件"""
-        supported_files = ['fdother.dat', 'fdicon.b24', 'dato.dat', 'bg.dat', 'fdtxt.dat', 'tai.dat', 'figani.dat']
+        supported_files = ['fdother.dat', 'fdicon.b24', 'dato.dat', 'bg.dat', 'fdtxt.dat', 'tai.dat', 'figani.dat', 'fdshap.dat', 'fdfield.dat']
         found_files = []
         
         for file in os.listdir(directory):
@@ -614,6 +619,11 @@ class FD2Analyzer(Main):
                                             # 将图像保存到主分类的单独目录中
                                             image_path = os.path.join(main_class_dir, f'fdshap_{main_index:03d}_{sub_index:04d}.png')
                                             image.save(image_path)
+                                            
+                                            # 将生成的图像存储到shaps数组中，供FDFIELD使用
+                                            if sub_index < len(self.shaps):
+                                                self.shaps[sub_index] = image
+                                            
                                             success_count += 1
                                     except Exception as e:
                                         print(f'FDSHAP主分类{main_index}子索引{sub_index}图像生成失败: {e}')
@@ -621,6 +631,9 @@ class FD2Analyzer(Main):
                 print(f'处理主分类{main_index}完成')
             except Exception as e:
                 print(f'处理主分类{main_index}时出错: {e}')
+        
+        # 设置shapsDone标志，表示图块图像已生成完成
+        self.shapsDone = True
         print(f'成功处理{total_processed}个FDSHAP主分类，生成{success_count}个图像文件')
 
     def load_fdfield_file(self, file_path):
@@ -633,6 +646,33 @@ class FD2Analyzer(Main):
         self.AnalysisFDFIELD()
         print(f'FDFIELD分析完成，共{len(self.datablocksFDFIELD)}个主分类')
         
+        # 生成地图图像
+        success_count = 0
+        for i in range(len(self.datablocksFDFIELD)):
+            # 检查数据块是否存在且有效
+            data_block = self.datablocksFDFIELD[i]
+            if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
+                try:
+                    # 确保在生成地图图像之前已经加载了FDSHAP文件
+                    if not self.shapsDone:
+                        print("错误: 生成地图图像前需要先分析FDSHAP.DAT文件!")
+                        return
+                    
+                    # 使用makeFieldBMP方法处理FDFIELD文件
+                    image = self.bmp_maker.makeFieldBMP(
+                        self.fileDatas,
+                        i,
+                        data_block.startOffset,
+                        data_block.length,
+                        ColorPanel(1)
+                    )
+                    image_path = os.path.join(self.output_dir, f'fdfield_{i:05d}.png')
+                    image.save(image_path)
+                    success_count += 1
+                except Exception as e:
+                    print(f'地图{i}处理失败: {e}')
+        print(f'成功提取{success_count}个地图图像')
+
 def main():
     """主函数，支持命令行参数解析"""
     import argparse

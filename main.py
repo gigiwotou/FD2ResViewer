@@ -1,6 +1,6 @@
+import io
 import os
 import struct
-import io
 from PIL import Image
 import sys
 from typing import Any, Optional
@@ -107,6 +107,7 @@ class BMPMaker:
         self.BMPDatas1Bit = bytearray(64)
         self.tempFontBMP = bytearray(len(self.BMPHeader1Bit) + 64) if self.BMPHeader1Bit else bytearray(64)
         self.BMPimage = None
+        self.shaps: list[Optional[Image.Image]] = [None] * 401  # 用于存储图块图像的数组
 
     def _load_resource(self, filename):
         """加载资源文件并返回字节数据"""
@@ -414,8 +415,12 @@ class BMPMaker:
         
         while num5 <= num4:
             num8 = struct.unpack('<h', datablock[num5:num5+2])[0]
-            # 假设MyModule.shaps[num8]是一个PIL Image对象
-            # self.BMPimage.paste(MyModule.shaps[num8], (num9 * 24, num10 * 24))
+            # 使用shaps数组中的图像进行拼接
+            # 修复：添加更严格的边界检查
+            if (hasattr(self, 'shaps') and self.shaps and 
+                0 <= num8 < len(self.shaps) and self.shaps[num8] is not None):
+                # 将图块图像粘贴到地图图像上
+                self.BMPimage.paste(self.shaps[num8], (num9 * 24, num10 * 24))
             num9 += 1
             if num9 >= width:
                 num9 = 0
@@ -610,6 +615,7 @@ class Main:
         self.datablocksFIGANI: list[list[Optional[DataBlock]]] = [[None for _ in range(41)] for _ in range(409)]  # List[List[Optional[DataBlock]]]
         self.subBlockCountsFIGANI: list[int] = [0] * 409  # List[int]
         self.shapsDone: bool = False  # bool
+        self.shaps: list[Optional[Image.Image]] = [None] * 401  # 用于存储图块图像的数组
         
         # 文件数据变量
         self.fileDatasBG: Optional[bytes] = None  # Optional[bytes]
@@ -623,42 +629,6 @@ class Main:
         self.fileDatasFD2: Optional[bytes] = None  # Optional[bytes]
         
         os.makedirs(self.output_dir, exist_ok=True)
-  
-    def AnalysisOTHER(self):
-        array = [0] * 104
-        num = 6
-        # 确保self.fileDatas不为None
-        if self.fileDatas is None:
-            return
-        while num <= 418:
-            index = int((num - 6) / 4)
-            # 确保索引在有效范围内
-            if index < len(array) and num + 4 <= len(self.fileDatas):
-                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
-            num += 4
-
-        num4 = len(array) - 2
-        num5 = 0
-        while num5 <= num4:
-            # 确保索引在有效范围内
-            if num5 < len(self.datablocksOTHER) and num5 + 1 < len(array):
-                self.datablocksOTHER[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
-            num5 += 1
-        # 处理最后一个数据块
-        if num5 < len(self.datablocksOTHER) and num5 < len(array) and self.fileDatas is not None:
-            self.datablocksOTHER[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
-
-        # 进度条和列表框更新逻辑占位
-        progress_max = 103
-
-        num8 = 0
-        while num8 <= 102:
-            text = f"ID:{num8:04d}"
-            if num8 % 4 == 0:
-                pass  # 进度条更新占位
-            # 调用AnalysisOtherSubs处理子索引
-            self.AnalysisOtherSubs(num8)
-            num8 += 1
 
     def AnalysisFDFIELD(self):
         array = [0] * 100
@@ -695,16 +665,15 @@ class Main:
 
             num8 += 3
 
-    def AnalysisICON(self):
-        array = [0] * 1681
-        num = 6
-        # 确保self.fileDatas不为None
+    def AnalysisOTHER(self):
+        """分析FDOTHER数据结构"""
         if self.fileDatas is None:
             return
-        while num <= 6726:
+        array = [0] * 104
+        num = 6
+        while num <= 418:  # 6 + (104-1)*4 = 418
             index = int((num - 6) / 4)
-            # 确保索引在有效范围内
-            if index < len(array) and num + 4 <= len(self.fileDatas):
+            if num + 4 <= len(self.fileDatas):
                 array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
             num += 4
 
@@ -712,12 +681,23 @@ class Main:
         num5 = 0
         while num5 <= num4:
             # 确保索引在有效范围内
-            if num5 < len(self.datablocksICON):
-                self.datablocksICON[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            if num5 < len(self.datablocksOTHER) and num5 + 1 < len(array):
+                self.datablocksOTHER[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
             num5 += 1
         # 处理最后一个数据块
-        if num5 < len(self.datablocksICON) and num5 < len(array) and self.fileDatas is not None:
-            self.datablocksICON[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+        if num5 < len(self.datablocksOTHER) and num5 < len(array) and self.fileDatas is not None:
+            self.datablocksOTHER[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
+
+        # 进度条和列表框更新逻辑占位
+        progress_max = 103
+        num8 = 0
+        while num8 <= 102:
+            text = f"ID:{num8:04d}"
+            if num8 % 4 == 0:
+                pass  # 进度条更新占位
+            # 调用AnalysisOtherSubs处理子索引
+            self.AnalysisOtherSubs(num8)
+            num8 += 1
     
     def AnalysisOtherSubs(self, subIndex):
         if subIndex in (1, 14):
@@ -775,12 +755,9 @@ class Main:
 
             num38 = num34 - 2
             num36 = 0
-            bmp_maker = BMPMaker()
-            colorpanel = ColorPanel(1)
             while num36 <= num38:
                 if self.datablocksOTHERSubs is not None:
                     self.datablocksOTHERSubs[num36] = DataBlock(array4[num36], array4[num36+1] - array4[num36])
-                           
                 num36 += 1
             if self.datablocksOTHERSubs is not None:
                 self.datablocksOTHERSubs[num36] = DataBlock(array4[num36], datablock.length - array4[num36])
@@ -942,7 +919,6 @@ class Main:
             )
             image_path = os.path.join(self.output_dir, f'shap_{subIndex}.png')
             image.save(image_path)
-
         elif subIndex == 55:
             # 添加None检查
             if self.datablocksOTHER[subIndex] is None or self.fileDatas is None:
@@ -1424,8 +1400,8 @@ class Main:
                         continue
                     start_offset = datablock.startOffset + datablockSub.startOffset
 
-                    sWidth = 0  # 默认값
-                    sHeight = 0  # 默认값
+                    sWidth = 0 
+                    sHeight = 0  
                     if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
                         sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
                         sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
@@ -1443,6 +1419,30 @@ class Main:
                     )
                     image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
                     image.save(image_path)
+
+    def AnalysisICON(self):
+        array = [0] * 1681
+        num = 6
+        # 确保self.fileDatas不为None
+        if self.fileDatas is None:
+            return
+        while num <= 6726:
+            index = int((num - 6) / 4)
+            # 确保索引在有效范围内
+            if index < len(array) and num + 4 <= len(self.fileDatas):
+                array[index] = struct.unpack('<I', self.fileDatas[num:num+4])[0]
+            num += 4
+
+        num4 = len(array) - 2
+        num5 = 0
+        while num5 <= num4:
+            # 确保索引在有效范围内
+            if num5 < len(self.datablocksICON):
+                self.datablocksICON[num5] = DataBlock(array[num5], array[num5 + 1] - array[num5])
+            num5 += 1
+        # 处理最后一个数据块
+        if num5 < len(self.datablocksICON) and num5 < len(array) and self.fileDatas is not None:
+            self.datablocksICON[num5] = DataBlock(array[num5], len(self.fileDatas) - array[num5])
 
     def AnalysisFDSHAP(self):
         if self.fileDatasFDSHAP is None:
