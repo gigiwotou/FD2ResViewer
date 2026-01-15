@@ -1390,35 +1390,35 @@ class Main:
                         image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
                         image.save(image_path)
 
-                if num3 == 79:
-                    # 添加None检查
-                    if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
-                        continue
-                    datablock = self.datablocksOTHER[num3]
-                    datablockSub = self.datablocksOTHERSubs[num2]
-                    if datablock is None or datablockSub is None:
-                        continue
-                    start_offset = datablock.startOffset + datablockSub.startOffset
+                # if num3 == 79:
+                #     # 添加None检查
+                #     if self.datablocksOTHER[num3] is None or self.datablocksOTHERSubs[num2] is None:
+                #         continue
+                #     datablock = self.datablocksOTHER[num3]
+                #     datablockSub = self.datablocksOTHERSubs[num2]
+                #     if datablock is None or datablockSub is None:
+                #         continue
+                #     start_offset = datablock.startOffset + datablockSub.startOffset
 
-                    sWidth = 0 
-                    sHeight = 0  
-                    if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
-                        sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
-                        sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
+                #     sWidth = 0 
+                #     sHeight = 0  
+                #     if self.fileDatas is not None and start_offset + 2 <= len(self.fileDatas) and start_offset + 4 <= len(self.fileDatas):
+                #         sWidth = struct.unpack('<h', self.fileDatas[start_offset:start_offset+2])[0]
+                #         sHeight = struct.unpack('<h', self.fileDatas[start_offset+2:start_offset+4])[0]
 
-                    # print(f"subIndex: {subIndex}, num2: {num2:03d}, start_offset: {start_offset}, sWidth: {sWidth}, sHeight: {sHeight}, data_offset: {start_offset}")
+                #     # print(f"subIndex: {subIndex}, num2: {num2:03d}, start_offset: {start_offset}, sWidth: {sWidth}, sHeight: {sHeight}, data_offset: {start_offset}")
                     
-                    data_offset = start_offset + 4
-                    # 生成其他类型图像                    
-                    image = self.bmp_maker.makeBMP(
-                        sWidth, sHeight,
-                        self.fileDatas,
-                        data_offset,
-                        datablockSub.length - 4,
-                        ColorPanel(1)
-                    )
-                    image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
-                    image.save(image_path)
+                #     data_offset = start_offset + 4
+                #     # 生成其他类型图像                    
+                #     image = self.bmp_maker.makeBMP(
+                #         sWidth, sHeight,
+                #         self.fileDatas,
+                #         data_offset,
+                #         datablockSub.length - 4,
+                #         ColorPanel(1)
+                #     )
+                #     image_path = os.path.join(self.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                #     image.save(image_path)
 
     def AnalysisICON(self):
         array = [0] * 1681
