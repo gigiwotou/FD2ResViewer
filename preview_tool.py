@@ -8,6 +8,7 @@ from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 import os
 import threading
+import struct
 from fd2_analyzer import FD2Analyzer
 from main import ColorPanel
 
@@ -30,6 +31,9 @@ class ImagePreviewTool:
         
         # 图像数据缓存
         self.image_cache = {}
+        
+        # 存储最后预览的图像，防止被垃圾回收
+        self.last_preview_image = None
         
         self.setup_ui()
     
@@ -215,24 +219,26 @@ class ImagePreviewTool:
         """获取FDOTHER.DAT中的图像信息"""
         images = []
         
-        # 遍历可能包含图像的子索引
-        for sub_index in range(min(20, len(self.analyzer.datablocksOTHER))):
+        # 先分析所有主索引
+        for sub_index in range(len(self.analyzer.datablocksOTHER)):
             datablock = self.analyzer.datablocksOTHER[sub_index]
             if datablock and datablock.length > 4:
-                # 某些特定的子索引通常包含图像
-                if sub_index in (1, 2, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 46, 47, 55, 56, 59, 60, 61, 62, 69, 70, 71, 72, 73, 74, 75, 79, 96, 97, 98, 100):
-                    images.append((f"Main_{sub_index}", "Image", "Variable", "Custom"))
-        
-        # 也包括子数据块
-        for sub_index in range(min(10, len(self.analyzer.datablocksOTHER))):
-            try:
-                self.analyzer.AnalysisOtherSubs(sub_index)
-                if self.analyzer.datablocksOTHERSubs:
-                    for sub_idx, subblock in enumerate(self.analyzer.datablocksOTHERSubs[:20]):  # 只显示前20个
-                        if subblock and subblock.length > 4:
-                            images.append((f"Main_{sub_index}_Sub_{sub_idx}", "SubImage", "Variable", "Custom"))
-            except:
-                continue
+                try:
+                    # 对每个主索引进行子索引分析
+                    self.analyzer.AnalysisOtherSubs(sub_index)
+                    # 调用AnalysisOtherSubsImage方法处理子索引图像
+                    self.analyzer.AnalysisOtherSubsImage(sub_index)
+                    # 添加主索引项
+                    images.append((f"Main_{sub_index}", "MainBlock", "Variable", f"ID_{sub_index}"))
+                    
+                    # 如果有子数据块，也添加它们
+                    if hasattr(self.analyzer, 'datablocksOTHERSubs') and self.analyzer.datablocksOTHERSubs:
+                        for sub_idx, subblock in enumerate(self.analyzer.datablocksOTHERSubs):
+                            if subblock and subblock.length > 4:
+                                images.append((f"Main_{sub_index}_Sub_{sub_idx}", "SubBlock", "Variable", f"Main_{sub_index}_Sub_{sub_idx}"))
+                except Exception as e:
+                    # 如果特定的主索引分析失败，继续下一个
+                    continue
                 
         return images
     
@@ -415,55 +421,731 @@ class ImagePreviewTool:
                         
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
-            elif any(x in img_id for x in ['Main', 'Sub']):
+            elif 'Main_' in img_id:
                 # 处理FDOTHER子数据块
-                if 'Sub' in img_id and '_' in img_id:
-                    # 是子数据块
-                    main_idx_str = img_id.split('_')[1]  # 获取主索引部分
+                parts = img_id.split('_')
+                if len(parts) >= 3 and parts[2] == 'Sub':
+                    # 是子数据块: Main_X_Sub_Y
                     try:
-                        main_idx = int(main_idx_str)
-                        sub_idx_str = img_id.split('_')[3]  # 获取子索引部分
-                        sub_idx = int(sub_idx_str)
+                        main_idx = int(parts[1])
+                        sub_idx = int(parts[3])
                         
-                        if (main_idx < len(self.analyzer.datablocksOTHER) and 
-                            self.analyzer.datablocksOTHERSubs and 
-                            sub_idx < len(self.analyzer.datablocksOTHERSubs)):
-                            
-                            datablock_main = self.analyzer.datablocksOTHER[main_idx]
-                            datablock_sub = self.analyzer.datablocksOTHERSubs[sub_idx]
-                            
-                            if datablock_main and datablock_sub and datablock_sub.length > 4:
-                                # 根据主索引确定图像类型
-                                start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        # 重新分析主索引以确保子数据块已加载
+                        if main_idx < len(self.analyzer.datablocksOTHER):
+                            # 调用AnalysisOtherSubs和AnalysisOtherSubsImage方法，这会处理所有子索引并生成图像
+                            self.analyzer.AnalysisOtherSubs(main_idx)
+                            self.analyzer.AnalysisOtherSubsImage(main_idx)
+                            # 由于我们只需要生成特定子索引的图像，调用子图像生成方法
+                            if (hasattr(self.analyzer, 'datablocksOTHERSubs') and 
+                                self.analyzer.datablocksOTHERSubs and 
+                                sub_idx < len(self.analyzer.datablocksOTHERSubs)):
                                 
-                                # 尝试不同类型的图像生成方法
+                                datablock_main = self.analyzer.datablocksOTHER[main_idx]
+                                datablock_sub = self.analyzer.datablocksOTHERSubs[sub_idx]
+                                
+                                if datablock_main and datablock_sub and datablock_sub.length > 4:
+                                    # 根据FD2Analyzer中的AnalysisOtherSubsImage方法确定图像类型并生成
+                                    self._generate_fdother_sub_image(main_idx, sub_idx)
+                    except (ValueError, IndexError, AttributeError):
+                        pass  # 解析失败，跳过
+                else:
+                    # 是主数据块: Main_X
+                    try:
+                        main_idx = int(parts[1])
+                        if main_idx < len(self.analyzer.datablocksOTHER):
+                            # 为该主索引处理所有子索引
+                            self.analyzer.AnalysisOtherSubs(main_idx)
+                            self.analyzer.AnalysisOtherSubsImage(main_idx)
+                            # 对于主数据块，我们尝试生成第一个子数据块的图像作为代表
+                            if (hasattr(self.analyzer, 'datablocksOTHERSubs') and 
+                                self.analyzer.datablocksOTHERSubs and 
+                                len(self.analyzer.datablocksOTHERSubs) > 0):
+                                # 生成第一个子索引的图像
+                                datablock_main = self.analyzer.datablocksOTHER[main_idx]
+                                datablock_sub = self.analyzer.datablocksOTHERSubs[0]
+                                
+                                if datablock_main and datablock_sub and datablock_sub.length > 4:
+                                    self._generate_fdother_sub_image(main_idx, 0)
+                            else:
+                                # 如果没有子数据块，使用主数据块的特殊处理
+                                datablock = self.analyzer.datablocksOTHER[main_idx]
+                                if datablock and datablock.length > 4:
+                                    # 根据FD2Analyzer中的AnalysisOtherSubs方法，某些主索引有特殊的图像生成方式
+                                    self._generate_fdother_main_image(main_idx)
+                    except (ValueError, IndexError):
+                        pass  # 解析失败，跳过
+        
+        except Exception as e:
+            print(f"生成预览图像时出错: {str(e)}")
+    
+    def _generate_fdother_main_image(self, main_idx):
+        """根据主索引生成FDOTHER图像"""
+        try:
+            datablock = self.analyzer.datablocksOTHER[main_idx]
+            if not (datablock and datablock.length > 4):
+                return
+            
+            # 根据FD2Analyzer中的逻辑处理不同类型的主索引
+            if main_idx in (10, 15):
+                # 人脸图像
+                image = self.analyzer.bmp_maker.makeFaceBMP(
+                    self.analyzer.fileDatas,
+                    datablock.startOffset,
+                    datablock.length,
+                    self.colorpanel_class(1)
+                )
+            elif main_idx in (11, 16, 17, 46, 47, 56, 59, 60, 61, 62, 69, 70, 71, 72, 73, 74, 75, 97, 98, 100):
+                # 形状图像
+                if self.analyzer.fileDatas and datablock.startOffset + 4 <= len(self.analyzer.fileDatas):
+                    sWidth = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset:datablock.startOffset+2])[0]
+                    sHeight = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset+2:datablock.startOffset+4])[0]
+                    image = self.analyzer.bmp_maker.makeShapBMP(
+                        max(1, min(sWidth, 100)), max(1, min(sHeight, 100)),
+                        self.analyzer.fileDatas,
+                        datablock.startOffset + 4,
+                        datablock.length - 4,
+                        self.colorpanel_class(1)
+                    )
+                else:
+                    # 默认大小
+                    image = self.analyzer.bmp_maker.makeShapBMP(
+                        24, 24,
+                        self.analyzer.fileDatas,
+                        datablock.startOffset + 4,
+                        datablock.length - 4,
+                        self.colorpanel_class(1)
+                    )
+            elif main_idx == 55:
+                # 普通图像
+                if self.analyzer.fileDatas and datablock.startOffset + 4 <= len(self.analyzer.fileDatas):
+                    sWidth = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset:datablock.startOffset+2])[0]
+                    sHeight = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset+2:datablock.startOffset+4])[0]
+                    image = self.analyzer.bmp_maker.makeBMP(
+                        max(1, min(sWidth, 100)), max(1, min(sHeight, 100)),
+                        self.analyzer.fileDatas,
+                        datablock.startOffset + 4,
+                        datablock.length - 4,
+                        self.colorpanel_class(1)
+                    )
+                else:
+                    # 默认大小
+                    image = self.analyzer.bmp_maker.makeBMP(
+                        24, 24,
+                        self.analyzer.fileDatas,
+                        datablock.startOffset + 4,
+                        datablock.length - 4,
+                        self.colorpanel_class(1)
+                    )
+            else:
+                # 尝试分析子索引并根据子索引类型生成图像
+                self.analyzer.AnalysisOtherSubs(main_idx)
+                # 同时调用AnalysisOtherSubsImage方法
+                self.analyzer.AnalysisOtherSubsImage(main_idx)
+                # 如果没有特殊处理，则使用默认的形状图像生成方法
+                image = self.analyzer.bmp_maker.makeShapBMP(
+                    24, 24,
+                    self.analyzer.fileDatas,
+                    datablock.startOffset + 4,
+                    datablock.length - 4,
+                    self.colorpanel_class(1)
+                )
+            
+            self.root.after(0, lambda img=image: self._show_preview_image(img))
+        except Exception as e:
+            print(f"生成FDOTHER主图像时出错: {str(e)}")
+    
+    def _generate_fdother_sub_image(self, main_idx, sub_idx):
+        """根据主索引和子索引生成FDOTHER子图像"""
+        try:
+            # 重新分析主索引以确保子数据块已加载
+            self.analyzer.AnalysisOtherSubs(main_idx)
+            # 调用AnalysisOtherSubsImage方法以确保数据结构正确设置
+            self.analyzer.AnalysisOtherSubsImage(main_idx)
+            
+            if (hasattr(self.analyzer, 'datablocksOTHERSubs') and 
+                self.analyzer.datablocksOTHERSubs and 
+                sub_idx < len(self.analyzer.datablocksOTHERSubs)):
+                
+                datablock_main = self.analyzer.datablocksOTHER[main_idx]
+                datablock_sub = self.analyzer.datablocksOTHERSubs[sub_idx]
+                
+                if datablock_main and datablock_sub and datablock_sub.length > 4:
+                    start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                    
+                    # 根据FD2Analyzer中的AnalysisOtherSubsImage方法逻辑处理不同情况
+                    # 这里需要根据main_idx来决定如何处理子索引，与AnalysisOtherSubsImage方法保持一致
+                    
+                    # 根据AnalysisOtherSubsImage方法的逻辑
+                    num3 = main_idx
+                    num2 = sub_idx
+                    
+                    if num3 == 1 or num3 == 96:
+                        # 从主数据块获取宽高信息
+                        sWidth = 24  # 默认值
+                        sHeight = 24  # 默认值
+                        if num3 == 96:
+                            sWidth = 24
+                            sHeight = 24
+                        else:
+                            if (self.analyzer.fileDatas and 
+                                datablock_main.startOffset + 4 <= len(self.analyzer.fileDatas)):
+                                sWidth = struct.unpack('<h', self.analyzer.fileDatas[datablock_main.startOffset:datablock_main.startOffset+2])[0]
+                                sHeight = struct.unpack('<h', self.analyzer.fileDatas[datablock_main.startOffset+2:datablock_main.startOffset+4])[0]
+                        
+                        # 生成形状图像
+                        try:
+                            image = self.analyzer.bmp_maker.makeShapBMP(
+                                sWidth, sHeight,
+                                self.analyzer.fileDatas,
+                                start_offset,
+                                datablock_sub.length,
+                                self.colorpanel_class(1)
+                            )
+                        except IndexError:
+                            # 如果出现索引错误，尝试使用较小的尺寸或默认尺寸
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    24, 24,
+                                    self.analyzer.fileDatas,
+                                    start_offset,
+                                    datablock_sub.length,
+                                    self.colorpanel_class(1)
+                                )
+                            except:
+                                # 如果还是失败，创建一个空白图像
+                                image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        
+                    elif num3 == 2:
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        
+                        data_offset = start_offset + 4
+                        # 生成其他类型图像
+                        try:
+                            image = self.analyzer.bmp_maker.makeBMP(
+                                sWidth, sHeight,
+                                self.analyzer.fileDatas,
+                                data_offset,
+                                datablock_sub.length - 4,
+                                self.colorpanel_class(1)
+                            )
+                        except IndexError:
+                            # 如果出现索引错误，尝试使用较小的尺寸或默认尺寸
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    min(sWidth, 100), min(sHeight, 100),
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except:
+                                # 如果还是失败，创建一个空白图像
+                                image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    elif num3 == 4:
+                        data_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        # 生成字体图像
+                        try:
+                            image = self.analyzer.bmp_maker.makeFontBMP(
+                                self.analyzer.fileDatas,
+                                data_offset,
+                                datablock_sub.length
+                            )
+                        except IndexError:
+                            # 如果出现索引错误，创建一个空白图像
+                            image = Image.new('RGB', (64, 64), (255, 255, 255))
+                    
+                    elif num3 == 5:
+                        start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        
+                        if num2 < 20:
+                            data_offset = start_offset + 4
+                            # 生成其他类型图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
-                                    # 先尝试获取尺寸信息
-                                    if self.analyzer.fileDatas and start_offset + 4 <= len(self.analyzer.fileDatas):
-                                        width = int.from_bytes(self.analyzer.fileDatas[start_offset:start_offset+2], 'little', signed=True)
-                                        height = int.from_bytes(self.analyzer.fileDatas[start_offset+2:start_offset+4], 'little', signed=True)
-                                        
-                                        if 1 <= width <= 200 and 1 <= height <= 200:  # 合理的尺寸范围
-                                            image = self.analyzer.bmp_maker.makeBMP(
-                                                width, height,
-                                                self.analyzer.fileDatas,
-                                                start_offset + 4,
-                                                datablock_sub.length - 4,
-                                                self.colorpanel_class(1)
-                                            )
-                                        else:
-                                            # 如果尺寸不合理，使用默认尺寸
-                                            image = self.analyzer.bmp_maker.makeShapBMP(
-                                                24, 24,
-                                                self.analyzer.fileDatas,
-                                                start_offset,
-                                                datablock_sub.length,
-                                                self.colorpanel_class(1)
-                                            )
-                                        
-                                        self.root.after(0, lambda img=image: self._show_preview_image(img))
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        min(sWidth, 100), min(sHeight, 100),
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
                                 except:
-                                    # 如果上述方法失败，尝试其他方法
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 < 23:
+                            data_offset = start_offset
+                            if (self.analyzer.fileDatas and data_offset + 2 <= len(self.analyzer.fileDatas) and data_offset + 4 <= len(self.analyzer.fileDatas)):
+                                sWidth = struct.unpack('<h', self.analyzer.fileDatas[data_offset:data_offset+2])[0]
+                                sHeight = struct.unpack('<h', self.analyzer.fileDatas[data_offset+2:data_offset+4])[0]
+                            # 生成面部图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeFaceBMP(
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，创建一个空白图像
+                                image = Image.new('RGB', (64, 64), (255, 255, 255))
+                        elif num2 < 31:
+                            data_offset = start_offset + 4
+                            # 生成其他类型图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用较小的尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        min(sWidth, 100), min(sHeight, 100),
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 < 53:
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    start_offset + 4,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用默认尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeShapBMP(
+                                        24, 24,
+                                        self.analyzer.fileDatas,
+                                        start_offset + 4,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 < 64 and num2 != 59:
+                            data_offset = start_offset + 4
+                            # 生成其他类型图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用较小的尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        min(sWidth, 100), min(sHeight, 100),
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 != 59:
+                            if num2 < 119 and num2 != 93:
+                                data_offset = start_offset
+                                if (self.analyzer.fileDatas and data_offset + 2 <= len(self.analyzer.fileDatas) and data_offset + 4 <= len(self.analyzer.fileDatas)):
+                                    sWidth = struct.unpack('<h', self.analyzer.fileDatas[data_offset:data_offset+2])[0]
+                                    sHeight = struct.unpack('<h', self.analyzer.fileDatas[data_offset+2:data_offset+4])[0]
+                                # 生成面部图像
+                                try:
+                                    image = self.analyzer.bmp_maker.makeFaceBMP(
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length,
+                                        self.colorpanel_class(1)
+                                    )
+                                except IndexError:
+                                    # 如果出现索引错误，创建一个空白图像
+                                    image = Image.new('RGB', (64, 64), (255, 255, 255))
+                            else:
+                                try:
+                                    image = self.analyzer.bmp_maker.makeShapBMP(
+                                        sWidth, sHeight,
+                                        self.analyzer.fileDatas,
+                                        start_offset + 4,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except IndexError:
+                                    # 如果出现索引错误，尝试使用默认尺寸
+                                    try:
+                                        image = self.analyzer.bmp_maker.makeShapBMP(
+                                            24, 24,
+                                            self.analyzer.fileDatas,
+                                            start_offset + 4,
+                                            datablock_sub.length - 4,
+                                            self.colorpanel_class(1)
+                                        )
+                                    except:
+                                        # 如果还是失败，创建一个空白图像
+                                        image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        else:
+                            # 默认情况
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    start_offset + 4,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用默认尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeShapBMP(
+                                        24, 24,
+                                        self.analyzer.fileDatas,
+                                        start_offset + 4,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    elif num3 == 7:
+                        start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        color_panel = self.colorpanel_class(3)  # Create new color panel with ID 3
+                        data_offset = start_offset + 4
+                        # 生成形状图像
+                        try:
+                            image = self.analyzer.bmp_maker.makeShapBMP(
+                                sWidth, sHeight,
+                                self.analyzer.fileDatas,
+                                data_offset,
+                                datablock_sub.length - 4,
+                                color_panel
+                            )
+                        except IndexError:
+                            # 如果出现索引错误，尝试使用默认尺寸
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    24, 24,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    color_panel
+                                )
+                            except:
+                                # 如果还是失败，创建一个空白图像
+                                image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    elif num3 in (6, 9):
+                        start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        data_offset = start_offset
+                        if (self.analyzer.fileDatas and data_offset + 2 <= len(self.analyzer.fileDatas) and data_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[data_offset:data_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[data_offset+2:data_offset+4])[0]
+                        
+                        # 生成面部图像
+                        try:
+                            image = self.analyzer.bmp_maker.makeFaceBMP(
+                                self.analyzer.fileDatas,
+                                data_offset,
+                                datablock_sub.length,
+                                self.colorpanel_class(1)
+                            )
+                        except IndexError:
+                            # 如果出现索引错误，创建一个空白图像
+                            image = Image.new('RGB', (64, 64), (255, 255, 255))
+                    
+                    elif num3 in (12, 63):
+                        start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        
+                        if num2 == 0 or (num2 >= 23 and num2 <= 29):
+                            data_offset = start_offset + 4
+                            # 生成形状图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用默认尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeShapBMP(
+                                        24, 24,
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 == 1 or num2 == 2 or (num2 >= 11 and num2 < 22):
+                            data_offset = start_offset
+                            if (self.analyzer.fileDatas and data_offset + 2 <= len(self.analyzer.fileDatas) and data_offset + 4 <= len(self.analyzer.fileDatas)):
+                                sWidth = struct.unpack('<h', self.analyzer.fileDatas[data_offset:data_offset+2])[0]
+                                sHeight = struct.unpack('<h', self.analyzer.fileDatas[data_offset+2:data_offset+4])[0]
+                            # 生成面部图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeFaceBMP(
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，创建一个空白图像
+                                image = Image.new('RGB', (64, 64), (255, 255, 255))
+                        else:
+                            data_offset = start_offset + 4
+                            # 生成其他类型图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用较小的尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        min(sWidth, 100), min(sHeight, 100),
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    elif num3 == 13:
+                        start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        
+                        if num2 == 0:
+                            data_offset = start_offset + 4
+                            # 生成形状图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用默认尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeShapBMP(
+                                        24, 24,
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 == 1 or num2 == 2 or num2 >= 11:
+                            data_offset = start_offset
+                            if (self.analyzer.fileDatas and data_offset + 2 <= len(self.analyzer.fileDatas) and data_offset + 4 <= len(self.analyzer.fileDatas)):
+                                sWidth = struct.unpack('<h', self.analyzer.fileDatas[data_offset:data_offset+2])[0]
+                                sHeight = struct.unpack('<h', self.analyzer.fileDatas[data_offset+2:data_offset+4])[0]
+                            # 生成面部图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeFaceBMP(
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，创建一个空白图像
+                                image = Image.new('RGB', (64, 64), (255, 255, 255))
+                        else:
+                            data_offset = start_offset + 4
+                            # 生成其他类型图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用较小的尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        min(sWidth, 100), min(sHeight, 100),
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    elif num3 == 14:
+                        start_offset = datablock_main.startOffset + datablock_sub.startOffset
+                        sWidth = 0  # 默认值
+                        sHeight = 0  # 默认值
+                        if (self.analyzer.fileDatas and start_offset + 2 <= len(self.analyzer.fileDatas) and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                            sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                        
+                        if num2 == 0 or num2 >= 23:
+                            data_offset = start_offset + 4
+                            # 生成形状图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用默认尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeShapBMP(
+                                        24, 24,
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        elif num2 == 1 or num2 == 2 or (num2 >= 11 and num2 < 23):
+                            data_offset = start_offset
+                            if (self.analyzer.fileDatas and data_offset + 2 <= len(self.analyzer.fileDatas) and data_offset + 4 <= len(self.analyzer.fileDatas)):
+                                sWidth = struct.unpack('<h', self.analyzer.fileDatas[data_offset:data_offset+2])[0]
+                                sHeight = struct.unpack('<h', self.analyzer.fileDatas[data_offset+2:data_offset+4])[0]
+                            # 生成面部图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeFaceBMP(
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，创建一个空白图像
+                                image = Image.new('RGB', (64, 64), (255, 255, 255))
+                        else:
+                            data_offset = start_offset + 4
+                            # 生成其他类型图像
+                            try:
+                                image = self.analyzer.bmp_maker.makeBMP(
+                                    sWidth, sHeight,
+                                    self.analyzer.fileDatas,
+                                    data_offset,
+                                    datablock_sub.length - 4,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果出现索引错误，尝试使用较小的尺寸
+                                try:
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        min(sWidth, 100), min(sHeight, 100),
+                                        self.analyzer.fileDatas,
+                                        data_offset,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                except:
+                                    # 如果还是失败，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    else:
+                        # 对于未特别处理的主索引，尝试通用方法
+                        if (self.analyzer.fileDatas and start_offset + 4 <= len(self.analyzer.fileDatas)):
+                            try:
+                                sWidth = struct.unpack('<h', self.analyzer.fileDatas[start_offset:start_offset+2])[0]
+                                sHeight = struct.unpack('<h', self.analyzer.fileDatas[start_offset+2:start_offset+4])[0]
+                                
+                                if 1 <= sWidth <= 200 and 1 <= sHeight <= 200:  # 合理的尺寸范围
+                                    image = self.analyzer.bmp_maker.makeBMP(
+                                        sWidth, sHeight,
+                                        self.analyzer.fileDatas,
+                                        start_offset + 4,
+                                        datablock_sub.length - 4,
+                                        self.colorpanel_class(1)
+                                    )
+                                else:
+                                    # 如果尺寸不合理，使用默认尺寸
+                                    try:
+                                        image = self.analyzer.bmp_maker.makeShapBMP(
+                                            24, 24,
+                                            self.analyzer.fileDatas,
+                                            start_offset,
+                                            datablock_sub.length,
+                                            self.colorpanel_class(1)
+                                        )
+                                    except IndexError:
+                                        # 如果还是出现索引错误，创建一个空白图像
+                                        image = Image.new('RGB', (24, 24), (255, 255, 255))
+                            except:
+                                # 如果解析失败，使用默认方法
+                                try:
                                     image = self.analyzer.bmp_maker.makeShapBMP(
                                         24, 24,
                                         self.analyzer.fileDatas,
@@ -471,63 +1153,26 @@ class ImagePreviewTool:
                                         datablock_sub.length,
                                         self.colorpanel_class(1)
                                     )
-                                    self.root.after(0, lambda img=image: self._show_preview_image(img))
-                    except (ValueError, IndexError):
-                        pass  # 解析失败，跳过
-                else:
-                    # 是主数据块
-                    try:
-                        main_idx = int(img_id.split('_')[1])
-                        if main_idx < len(self.analyzer.datablocksOTHER):
-                            datablock = self.analyzer.datablocksOTHER[main_idx]
-                            if datablock and datablock.length > 4:
-                                # 根据不同的主索引使用不同的图像生成方法
-                                if main_idx in (10, 15):
-                                    # 人脸图像
-                                    image = self.analyzer.bmp_maker.makeFaceBMP(
-                                        self.analyzer.fileDatas,
-                                        datablock.startOffset,
-                                        datablock.length,
-                                        self.colorpanel_class(1)
-                                    )
-                                elif main_idx in (11, 16, 17, 46, 47, 56, 59, 60, 61, 62, 69, 70, 71, 72, 73, 74, 75, 97, 98, 100):
-                                    # 形状图像
-                                    sWidth = int.from_bytes(self.analyzer.fileDatas[datablock.startOffset:datablock.startOffset+2], 'little', signed=True)
-                                    sHeight = int.from_bytes(self.analyzer.fileDatas[datablock.startOffset+2:datablock.startOffset+4], 'little', signed=True)
-                                    image = self.analyzer.bmp_maker.makeShapBMP(
-                                        max(1, min(sWidth, 100)), max(1, min(sHeight, 100)),
-                                        self.analyzer.fileDatas,
-                                        datablock.startOffset + 4,
-                                        datablock.length - 4,
-                                        self.colorpanel_class(1)
-                                    )
-                                elif main_idx == 55:
-                                    # 普通图像
-                                    sWidth = int.from_bytes(self.analyzer.fileDatas[datablock.startOffset:datablock.startOffset+2], 'little', signed=True)
-                                    sHeight = int.from_bytes(self.analyzer.fileDatas[datablock.startOffset+2:datablock.startOffset+4], 'little', signed=True)
-                                    image = self.analyzer.bmp_maker.makeBMP(
-                                        max(1, min(sWidth, 100)), max(1, min(sHeight, 100)),
-                                        self.analyzer.fileDatas,
-                                        datablock.startOffset + 4,
-                                        datablock.length - 4,
-                                        self.colorpanel_class(1)
-                                    )
-                                else:
-                                    # 默认使用形状图像生成方法
-                                    image = self.analyzer.bmp_maker.makeShapBMP(
-                                        24, 24,
-                                        self.analyzer.fileDatas,
-                                        datablock.startOffset + 4,
-                                        datablock.length - 4,
-                                        self.colorpanel_class(1)
-                                    )
-                                
-                                self.root.after(0, lambda img=image: self._show_preview_image(img))
-                    except (ValueError, IndexError):
-                        pass  # 解析失败，跳过
-        
+                                except IndexError:
+                                    # 如果还是出现索引错误，创建一个空白图像
+                                    image = Image.new('RGB', (24, 24), (255, 255, 255))
+                        else:
+                            # 如果没有足够的数据，使用默认方法
+                            try:
+                                image = self.analyzer.bmp_maker.makeShapBMP(
+                                    24, 24,
+                                    self.analyzer.fileDatas,
+                                    start_offset,
+                                    datablock_sub.length,
+                                    self.colorpanel_class(1)
+                                )
+                            except IndexError:
+                                # 如果还是出现索引错误，创建一个空白图像
+                                image = Image.new('RGB', (24, 24), (255, 255, 255))
+                    
+                    self.root.after(0, lambda img=image: self._show_preview_image(img))
         except Exception as e:
-            print(f"生成预览图像时出错: {str(e)}")
+            print(f"生成FDOTHER子图像时出错: {str(e)}")
     
     def _show_preview_image(self, image):
         """在画布上显示预览图像"""
@@ -559,7 +1204,8 @@ class ImagePreviewTool:
             self.canvas.create_image(x, y, anchor=tk.NW, image=photo)
             
             # 保持对PhotoImage的引用，防止被垃圾回收
-            self.canvas.image = photo
+            # 使用实例变量来保持引用
+            self.last_preview_image = photo
             
         except Exception as e:
             print(f"显示预览图像时出错: {str(e)}")
