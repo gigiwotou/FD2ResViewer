@@ -302,6 +302,9 @@ class FD2Analyzer(Main):
         elif 'fdfield.dat' in file_name:
             print('分析FDFIELD.DAT文件...')
             self.load_fdfield_file(file_path)
+        elif 'ani.dat' in file_name:
+            print('分析ANI.DAT文件...')
+            self.load_ani_file(file_path)
         else:
             print(f'暂不支持的文件类型: {file_name}')
             print('当前支持的文件类型:')
@@ -314,12 +317,13 @@ class FD2Analyzer(Main):
             print('- FIGANI.DAT (战斗动作序列)')
             print('- FDSHAP.DAT (形状资源)')
             print('- FDFIELD.DAT (地图资源)')
+            print('- ANI.DAT (动画资源)')
             return False
         return True
         
     def batch_analyze(self, directory):
         """批量分析目录中的所有支持文件"""
-        supported_files = ['fdother.dat', 'fdicon.b24', 'dato.dat', 'bg.dat', 'fdtxt.dat', 'tai.dat', 'figani.dat', 'fdshap.dat', 'fdfield.dat']
+        supported_files = ['fdother.dat', 'fdicon.b24', 'dato.dat', 'bg.dat', 'fdtxt.dat', 'tai.dat', 'figani.dat', 'fdshap.dat', 'fdfield.dat', 'ani.dat']
         found_files = []
         
         for file in os.listdir(directory):
@@ -673,7 +677,69 @@ class FD2Analyzer(Main):
                     print(f'地图{i}处理失败: {e}')
         print(f'成功提取{success_count}个地图图像')
 
+    def load_ani_file(self, file_path):
+        """分析ANI.DAT文件 - 动画资源"""
+        print("分析ANI.DAT文件...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用AnalysisANI进行文件分析
+        self.AnalysisANI()
+        print(f'ANI分析完成，共{len(self.datablocksANI)}个主分段')
+        
+        # 生成动画图像
+        total_sequences = 0
+        for i in range(len(self.datablocksANI)):  # 9个主分段
+            # 修复变量名不一致的问题
+            if i < len(self.subBlockCountsANI):
+                sub_block_count = self.subBlockCountsANI[i]
+            else:
+                sub_block_count = 0
+                
+            if sub_block_count > 0:
+                print(f'处理动画分段{i:02d}，包含{sub_block_count}个子段')
+                ani_dir = os.path.join(self.output_dir, f'ani_segment_{i:02d}')
+                os.makedirs(ani_dir, exist_ok=True)
+                
+                success_count = 0
+                for j in range(sub_block_count):
+                    # 检查数据块是否存在且有效
+                    if i < len(self.datablocksANI) and j < len(self.datablocksANI[i]):
+                        data_block = self.datablocksANI[i][j]
+                        if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
+                            try:
+                                # 使用新的ANI专用方法生成图像
+                                # 传递整个数据块给方法，它会从正确位置读取宽度、高度和数据
+                                image = self.bmp_maker.makeANIBMP(
+                                    self.fileDatas,
+                                    data_block.startOffset,  # 从数据块开始位置
+                                    data_block.length,     # 整个数据块长度
+                                    ColorPanel(1)
+                                )
+                                
+                                image_path = os.path.join(ani_dir, f'frame_{j:03d}.png')
+                                image.save(image_path)
+                                success_count += 1
+                                
+                                # 获取图像尺寸用于显示
+                                width, height = image.size
+                                print(f'  ANI动画分段{i:02d}帧{j:03d}处理成功: {width}x{height}')
+                            except Exception as e:
+                                print(f'ANI动画分段{i:02d}帧{j:03d}处理失败: {e}')
+                                # 尝试更安全的方式，仅保存原始数据到临时文件
+                                try:
+                                    # 保存原始数据块以便分析
+                                    raw_data_path = os.path.join(ani_dir, f'raw_frame_{j:03d}.bin')
+                                    with open(raw_data_path, 'wb') as raw_file:
+                                        raw_file.write(self.fileDatas[data_block.startOffset:data_block.startOffset+data_block.length])
+                                except:
+                                    pass  # 忽略保存原始数据的错误
+                print(f'  动画分段{i:02d}: 成功提取{success_count}帧')
+                total_sequences += 1
+        print(f'成功处理{total_sequences}个ANI动画分段')
+
 def main():
+
     """主函数，支持命令行参数解析"""
     import argparse
     import os

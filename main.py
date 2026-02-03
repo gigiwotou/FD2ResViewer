@@ -587,6 +587,95 @@ class BMPMaker:
         
         return self.BMPimage
 
+    def makeANIBMP(self, datablock, startOffset, length, colorpanel):
+        """ANI文件专用图像生成方法，处理[长度][宽度][高度][数据]格式"""
+        flag = False
+        # 从startOffset开始读取 [长度][宽度][高度]
+        frame_length = struct.unpack('<H', datablock[startOffset:startOffset+2])[0]
+        width = struct.unpack('<H', datablock[startOffset+2:startOffset+4])[0]
+        height = struct.unpack('<H', datablock[startOffset+4:startOffset+6])[0]
+        
+        # 确保宽度和高度在合理范围内
+        width = max(1, min(width, 1000))
+        height = max(1, min(height, 1000))
+        
+        self.BMPimage = Image.new('RGB', (width, height))
+        
+        # 从startOffset+6开始是实际的图像数据
+        data_start = startOffset + 6
+        data_end = min(data_start + frame_length, startOffset + length)
+        
+        num4 = data_start
+        num7 = 0  # 跳过的像素数
+        num8 = 0  # 重复次数
+        num9 = 0  # 连续绘制的像素数
+        b = 0
+        num10 = 0  # x坐标
+        num11 = 0  # y坐标
+        
+        while num4 < data_end:
+            if num4 % 200 == 0:
+                pass  # 需补充进度条更新逻辑
+            
+            # 修复flag处理逻辑，使其与C#版本完全一致
+            if num7 != 0:
+                num7 = 0
+                flag = True
+            else:
+                flag = False
+            
+            # 关键修复：flag会被num8的值覆盖
+            flag = (num8 != 0)
+            
+            # 修复逻辑判断，使其与C#版本完全一致
+            # C#中的 if (unchecked(0 - (flag ? 1 : 0)) == 0) 等价于 if not flag:
+            if not flag:
+                num7 = 0
+                num8 = 0
+                num9 = 0
+                if num4 < len(datablock):
+                    b = datablock[num4]
+                    if b >= 192:
+                        num7 = b - 192 + 1
+                    if 128 <= b < 192:
+                        num8 = b - 128 + 1
+                    if 64 <= b < 128:
+                        num9 = b - 64
+                        num8 = 1
+                        flag = True
+                    if b <= 63:
+                        num8 = 1
+                        num9 = b
+                
+                num10 += num7
+                if num10 >= width:
+                    num10 = 0
+                    num11 += 1
+                    flag = False
+            else:
+                # 修复循环逻辑，使其与C#版本完全一致
+                num12 = num9
+                num13 = 0
+                while True:
+                    if num13 > num12:
+                        break
+                    if 64 <= b < 128:
+                        num10 += 1
+                    if num4 < len(datablock):
+                        index = datablock[num4]
+                        if 0 <= num10 < width and 0 <= num11 < height:
+                            self.BMPimage.putpixel((num10, num11), colorpanel.thisColor(index))
+                    num10 += 1
+                    if num10 >= width:
+                        num10 = 0
+                        num11 += 1
+                        flag = False
+                    num13 += 1
+                num8 -= 1
+            num4 += 1
+        
+        return self.BMPimage
+
 import os
 import struct
 from PIL import Image
@@ -614,6 +703,8 @@ class Main:
         self.subBlockCountsTXT: list[int] = [0] * 35  # List[int]
         self.datablocksFIGANI: list[list[Optional[DataBlock]]] = [[None for _ in range(41)] for _ in range(409)]  # List[List[Optional[DataBlock]]]
         self.subBlockCountsFIGANI: list[int] = [0] * 409  # List[int]
+        self.datablocksANI: list[list[Optional[DataBlock]]] = [[None for _ in range(100)] for _ in range(9)]  # List[List[Optional[DataBlock]]] - ANI文件有9个分段
+        self.subBlockCountsANI: list[int] = [0] * 9  # List[int] - ANI文件有9个分段
         self.shapsDone: bool = False  # bool
         self.shaps: list[Optional[Image.Image]] = [None] * 401  # 用于存储图块图像的数组
         
@@ -1706,4 +1797,79 @@ class Main:
         
         # 完成进度
         # ProgressBar.Value = ProgressBar.Maximum  # UI操作占位
+
+    def AnalysisANI(self):
+        """分析ANI数据结构
+        ANI文件有9个分段，每段包含动画数据
+        每个段以"AFM - Animation File Manager..."开头，后面是"Empty Title."，然后是帧数据
+        根据分析，30x63动画精灵在每个段的固定偏移位置（0xd0 = 208字节处）
+        """
+        # 读取9个主要分段的偏移量 (跳过文件头的6字节)
+        segment_offsets = []
+        for i in range(9):
+            offset_bytes = self.fileDatas[6 + i*4:6 + (i+1)*4]
+            offset = struct.unpack('<I', offset_bytes)[0]
+            segment_offsets.append(offset)
+        
+        # 分析每个段
+        for i in range(9):
+            start_offset = segment_offsets[i]
+            end_offset = segment_offsets[i+1] if i+1 < len(segment_offsets) else len(self.fileDatas)
+            
+            frame_idx = 0
+            frames_found = 0
+            
+            # 检查固定位置是否有有效的30x63帧 (在段内偏移0xd0处)
+            fixed_pos = start_offset + 0xd0  # 0xd0 = 208字节
+            
+            if fixed_pos + 6 <= len(self.fileDatas):
+                length = struct.unpack('<H', self.fileDatas[fixed_pos:fixed_pos+2])[0]
+                width = struct.unpack('<H', self.fileDatas[fixed_pos+2:fixed_pos+4])[0]
+                height = struct.unpack('<H', self.fileDatas[fixed_pos+4:fixed_pos+6])[0]
+                
+                # 检查是否是30x63帧
+                if width == 30 and height == 63 and length > 0 and fixed_pos + 6 + length <= end_offset:
+                    # 创建数据块，包含帧头和数据
+                    frame_size = 6 + length  # 帧头(6字节) + 数据
+                    self.datablocksANI[i][frame_idx] = DataBlock(fixed_pos, frame_size)
+                    frames_found += 1
+                    frame_idx += 1
+                    print(f"段{i}: 找到30x63动画精灵，位置: 0x{fixed_pos:06x}")
+            
+            # 同时也搜索其他可能的帧（在Empty Title之后的区域）
+            segment_data = self.fileDatas[start_offset:end_offset]
+            empty_title_pos = segment_data.find(b"Empty Title.")
+            
+            if empty_title_pos != -1:
+                # 从Empty Title之后开始搜索其他帧（但避免重复检测30x63帧的位置）
+                current_file_pos = start_offset + empty_title_pos + len(b"Empty Title.")
+                
+                while current_file_pos < end_offset - 6 and frame_idx < len(self.datablocksANI[i]):
+                    # 跳过已知的30x63帧位置，避免重复
+                    if abs(current_file_pos - (start_offset + 0xd0)) < 10:  # 避免在30x63附近重复搜索
+                        current_file_pos += 2
+                        continue
+                        
+                    if current_file_pos + 6 <= len(self.fileDatas):
+                        length = struct.unpack('<H', self.fileDatas[current_file_pos:current_file_pos+2])[0]
+                        width = struct.unpack('<H', self.fileDatas[current_file_pos+2:current_file_pos+4])[0]
+                        height = struct.unpack('<H', self.fileDatas[current_file_pos+4:current_file_pos+6])[0]
+                        
+                        # 检查是否是合理的帧数据
+                        if (10 <= width <= 320 and 10 <= height <= 240 and 
+                            width * height <= length and  # 长度应至少等于像素数
+                            length > 0 and current_file_pos + 6 + length <= end_offset):  # 确保数据不超出段范围
+                            
+                            # 创建数据块，包含帧头和数据
+                            frame_size = 6 + length  # 帧头(6字节) + 数据
+                            self.datablocksANI[i][frame_idx] = DataBlock(current_file_pos, frame_size)
+                            frames_found += 1
+                            frame_idx += 1
+                            print(f"段{i}: 找到{width}x{height}动画精灵，位置: 0x{current_file_pos:06x}")
+                            break  # 暂时每个段最多找2个帧，避免解析错误
+                            
+                    current_file_pos += 2
+            
+            # 设置找到的帧数量
+            self.subBlockCountsANI[i] = frames_found
 
