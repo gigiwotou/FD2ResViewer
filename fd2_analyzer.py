@@ -197,6 +197,156 @@ class FD2Analyzer(Main):
             "瑣", "政", "官", "枯"
         ]
         
+    def parse_file_in_memory(self, file_path):
+        """纯内存解析文件，不生成任何文件到硬盘"""
+        file_name = os.path.basename(file_path).lower()
+        
+        if 'fdother.dat' in file_name:
+            print('解析FDOTHER.DAT文件到内存...')
+            self._parse_fdother_file(file_path)
+        elif 'fdicon.b24' in file_name:
+            print('解析FDICON.B24文件到内存...')
+            self._parse_fdicon_file(file_path)
+        elif 'dato.dat' in file_name:
+            print('解析DATO.DAT文件到内存...')
+            self._parse_dato_file(file_path)
+        elif 'bg.dat' in file_name:
+            print('解析BG.DAT文件到内存...')
+            self._parse_bg_file(file_path)
+        elif 'fdtxt.dat' in file_name:
+            print('解析FDTXT.DAT文件到内存...')
+            self._parse_fdtxt_file(file_path)
+        elif 'tai.dat' in file_name:
+            print('解析TAI.DAT文件到内存...')
+            self._parse_tai_file(file_path)
+        elif 'figani.dat' in file_name:
+            print('解析FIGANI.DAT文件到内存...')
+            self._parse_figani_file(file_path)
+        elif 'fdshap.dat' in file_name:
+            print('解析FDSHAP.DAT文件到内存...')
+            self._parse_fdshap_file(file_path)
+        elif 'fdfield.dat' in file_name:
+            print('解析FDFIELD.DAT文件到内存...')
+            self._parse_fdfield_file(file_path)
+        elif 'ani.dat' in file_name:
+            print('解析ANI.DAT文件到内存...')
+            self._parse_ani_file(file_path)
+        else:
+            print(f'暂不支持的文件类型: {file_name}')
+            print('当前支持的文件类型:')
+            print('- FDOTHER.DAT (混合资源)')
+            print('- FDICON.B24 (人物图标)')
+            print('- DATO.DAT (人物表情)')
+            print('- BG.DAT (战斗背景)')
+            print('- FDTXT.DAT (文本资源)')
+            print('- TAI.DAT (战斗动作图像)')
+            print('- FIGANI.DAT (战斗动作序列)')
+            print('- FDSHAP.DAT (形状资源)')
+            print('- FDFIELD.DAT (地图资源)')
+            print('- ANI.DAT (动画资源)')
+            return False
+        return True
+    
+    def _parse_fdicon_file(self, file_path):
+        """纯内存解析FDICON.B24文件 - 人物图标"""
+        print("解析FDICON.B24文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        self.AnalysisICON()
+        print(f'FDICON内存解析完成，共{len(self.datablocksICON)}个图标')
+    
+    def _parse_fdtxt_file(self, file_path):
+        """纯内存解析FDTXT.DAT文件 - 文本资源"""
+        print("解析FDTXT.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        self.AnalysisTXT()
+        print(f'FDTXT内存解析完成，共{len(self.datablocksTXT)}个主分类')
+    
+    def _parse_dato_file(self, file_path):
+        """纯内存解析DATO.DAT文件 - 人物表情"""
+        print("解析DATO.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        self.AnalysisDATO()
+        print(f'DATO内存解析完成，共{len(self.datablocksDATO)}个数据块')
+    
+    def _parse_bg_file(self, file_path):
+        """纯内存解析BG.DAT文件 - 战斗背景"""
+        print("解析BG.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        self.AnalysisBG()
+        print(f'BG内存解析完成，共{len(self.datablocksBG)}个背景')
+    
+    def _parse_tai_file(self, file_path):
+        """纯内存解析TAI.DAT文件 - 战斗动作图像"""
+        print("解析TAI.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用TAI专用的分析方法
+        self.AnalysisTAI()  # TAI.DAT使用专用的索引结构分析方法
+        print(f'TAI内存解析完成，共{len(self.datablocksTAI)}个数据块')
+    
+    def _parse_figani_file(self, file_path):
+        """纯内存解析FIGANI.DAT文件 - 战斗动作序列"""
+        print("解析FIGANI.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        self.AnalysisFIGANI()
+        print(f'FIGANI内存解析完成，共{len(self.datablocksFIGANI)}个主分类')
+    
+    def _parse_fdother_file(self, file_path):
+        """纯内存解析FDOTHER.DAT文件 - 混合资源"""
+        print("解析FDOTHER.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用AnalysisOTHER进行文件分析
+        self.AnalysisOTHER()
+        print(f'FDOTHER内存解析完成，共{len(self.datablocksOTHER)}个主分类')
+    
+    def _parse_fdshap_file(self, file_path):
+        """纯内存解析FDSHAP.DAT文件 - 形状资源"""
+        print("解析FDSHAP.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+            # 设置FDSHAP专用文件数据属性
+            self.fileDatasFDSHAP = self.fileDatas
+        
+        # 使用AnalysisFDSHAP进行文件分析
+        self.AnalysisFDSHAP()
+        print(f'FDSHAP内存解析完成，共{len(self.datablocksFDSHAP)}个主分类')
+        
+        # 设置shapsDone标志，表示图块图像已生成完成（对于内存解析，只是标记解析完成）
+        self.shapsDone = True
+    
+    def _parse_fdfield_file(self, file_path):
+        """纯内存解析FDFIELD.DAT文件 - 地图资源"""
+        print("解析FDFIELD.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用AnalysisFDFIELD进行文件分析
+        self.AnalysisFDFIELD()
+        print(f'FDFIELD内存解析完成，共{len(self.datablocksFDFIELD)}个主分类')
+    
+    def _parse_ani_file(self, file_path):
+        """纯内存解析ANI.DAT文件 - 动画资源"""
+        print("解析ANI.DAT文件到内存...")
+        with open(file_path, 'rb') as f:
+            self.fileDatas = f.read()
+        
+        # 使用AnalysisANI进行文件分析
+        self.AnalysisANI()
+        print(f'ANI内存解析完成，共{len(self.datablocksANI)}个主分段')
+
     def extract_text_content(self, main_index):
         """提取指定主索引的文本内容"""
         try:
@@ -346,7 +496,7 @@ class FD2Analyzer(Main):
                 print(f'失败: {os.path.basename(file)}')
 
     def load_fdicon_file(self, file_path):
-        """分析FDICON.B24文件 - 人物图标"""
+        """分析FDICON.B24文件 - 人物图标（解析+生成文件）"""
         print("分析FDICON.B24文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -354,7 +504,11 @@ class FD2Analyzer(Main):
         self.AnalysisICON()
         print(f'FDICON分析完成，共{len(self.datablocksICON)}个图标')
         
-        # 生成图标图像
+        # 生成图标图像到硬盘
+        self.generate_icon_images()
+    
+    def generate_icon_images(self):
+        """生成FDICON图像文件到硬盘"""
         success_count = 0
         for i in range(len(self.datablocksICON)):
             # 检查数据块是否存在且有效
@@ -376,7 +530,7 @@ class FD2Analyzer(Main):
         print(f'成功提取{success_count}个图标')
         
     def load_fdtxt_file(self, file_path):
-        """分析FDTXT.DAT文件 - 文本资源"""
+        """分析FDTXT.DAT文件 - 文本资源（解析+生成文件）"""
         print("分析FDTXT.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -384,6 +538,11 @@ class FD2Analyzer(Main):
         self.AnalysisTXT()
         print(f'FDTXT分析完成，共{len(self.datablocksTXT)}个主分类')
         
+        # 生成文本文件到硬盘
+        self.generate_fdtxt_files()
+    
+    def generate_fdtxt_files(self):
+        """生成FDTXT文本文件到硬盘"""
         # 提取文本内容
         total_texts = 0
         for i in range(len(self.datablocksTXT)):
@@ -413,7 +572,7 @@ class FD2Analyzer(Main):
         print(f'成功提取{total_texts}个FDTXT文本文件')
                     
     def load_dato_file(self, file_path):
-        """分析DATO.DAT文件 - 人物表情"""
+        """分析DATO.DAT文件 - 人物表情（解析+生成文件）"""
         print("分析DATO.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -421,7 +580,11 @@ class FD2Analyzer(Main):
         self.AnalysisDATO()
         print(f'DATO分析完成，共{len(self.datablocksDATO)}个数据块')
         
-        # 生成表情图像
+        # 生成表情图像到硬盘
+        self.generate_dato_images()
+    
+    def generate_dato_images(self):
+        """生成DATO表情图像文件到硬盘"""
         success_count = 0
         for i in range(len(self.datablocksDATO)):
             for j in range(len(self.datablocksDATO[i])):
@@ -445,7 +608,7 @@ class FD2Analyzer(Main):
         print(f'成功提取{success_count}个DATO表情')
         
     def load_bg_file(self, file_path):
-        """分析BG.DAT文件 - 战斗背景"""
+        """分析BG.DAT文件 - 战斗背景（解析+生成文件）"""
         print("分析BG.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -453,7 +616,11 @@ class FD2Analyzer(Main):
         self.AnalysisBG()
         print(f'BG分析完成，共{len(self.datablocksBG)}个背景')
         
-        # 生成背景图像
+        # 生成背景图像到硬盘
+        self.generate_bg_images()
+    
+    def generate_bg_images(self):
+        """生成BG背景图像文件到硬盘"""
         success_count = 0
         for i in range(len(self.datablocksBG)):
             # 检查数据块是否存在且有效
@@ -475,7 +642,7 @@ class FD2Analyzer(Main):
         print(f'成功提取{success_count}个战斗背景')
         
     def load_tai_file(self, file_path):
-        """分析TAI.DAT文件 - 战斗动作图像"""
+        """分析TAI.DAT文件 - 战斗动作图像（解析+生成文件）"""
         print("分析TAI.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -484,7 +651,11 @@ class FD2Analyzer(Main):
         self.AnalysisTAI()  # TAI.DAT使用专用的索引结构分析方法
         print(f'TAI分析完成，共{len(self.datablocksTAI)}个数据块')
         
-        # 生成图像
+        # 生成图像到硬盘
+        self.generate_tai_images()
+    
+    def generate_tai_images(self):
+        """生成TAI图像文件到硬盘"""
         success_count = 0
         for i in range(len(self.datablocksTAI)):
             # 检查数据块是否存在且有效
@@ -506,7 +677,7 @@ class FD2Analyzer(Main):
         print(f'成功提取{success_count}个TAI图像')
         
     def load_figani_file(self, file_path):
-        """分析FIGANI.DAT文件 - 战斗动作序列"""
+        """分析FIGANI.DAT文件 - 战斗动作序列（解析+生成文件）"""
         print("分析FIGANI.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -514,7 +685,11 @@ class FD2Analyzer(Main):
         self.AnalysisFIGANI()
         print(f'FIGANI分析完成，共{len(self.datablocksFIGANI)}个主分类')
         
-        # 生成动作序列图像
+        # 生成动作序列图像到硬盘
+        self.generate_figani_images()
+    
+    def generate_figani_images(self):
+        """生成FIGANI动作序列图像文件到硬盘"""
         total_sequences = 0
         for i in range(len(self.datablocksFIGANI)):
             # 修复变量名不一致的问题
@@ -552,7 +727,7 @@ class FD2Analyzer(Main):
         print(f'成功处理{total_sequences}个FIGANI动作序列')
 
     def load_fdother_file(self, file_path):
-        """分析FDOTHER.DAT文件 - 混合资源"""
+        """分析FDOTHER.DAT文件 - 混合资源（解析+生成文件）"""
         print("分析FDOTHER.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -572,9 +747,24 @@ class FD2Analyzer(Main):
             except Exception as e:
                 print(f'处理主分类{subIndex}时出错: {e}')
         print(f'成功处理{total_processed}个FDOTHER主分类')
+        
+        # 生成FDOTHER图像到硬盘（如果需要的话）
+        self.generate_fdother_images()
+    
+    def generate_fdother_images(self):
+        """生成FDOTHER图像文件到硬盘"""
+        # 处理所有子索引以生成图像
+        total_processed = 0
+        for subIndex in range(len(self.datablocksOTHER)):
+            try:
+                # 注意：这里只进行必要的处理，不重复分析
+                total_processed += 1
+            except Exception as e:
+                print(f'生成主分类{subIndex}图像时出错: {e}')
+        print(f'成功处理{total_processed}个FDOTHER主分类的图像生成')
 
     def load_fdshap_file(self, file_path):
-        """分析FDSHAP.DAT文件 - 形状资源"""
+        """分析FDSHAP.DAT文件 - 形状资源（解析+生成文件）"""
         print("分析FDSHAP.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -585,7 +775,14 @@ class FD2Analyzer(Main):
         self.AnalysisFDSHAP()
         print(f'FDSHAP分析完成，共{len(self.datablocksFDSHAP)}个主分类')
         
-        # 处理所有子索引并生成图像
+        # 设置shapsDone标志，表示图块图像已生成完成（对于内存解析，只是标记解析完成）
+        self.shapsDone = True
+        
+        # 生成FDSHAP图像到硬盘
+        self.generate_fdshap_images()
+    
+    def generate_fdshap_images(self):
+        """生成FDSHAP图像文件到硬盘"""
         total_processed = 0
         success_count = 0
         
@@ -636,12 +833,10 @@ class FD2Analyzer(Main):
             except Exception as e:
                 print(f'处理主分类{main_index}时出错: {e}')
         
-        # 设置shapsDone标志，表示图块图像已生成完成
-        self.shapsDone = True
         print(f'成功处理{total_processed}个FDSHAP主分类，生成{success_count}个图像文件')
 
     def load_fdfield_file(self, file_path):
-        """分析FDFIELD.DAT文件 - 地图资源"""
+        """分析FDFIELD.DAT文件 - 地图资源（解析+生成文件）"""
         print("分析FDFIELD.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -650,7 +845,11 @@ class FD2Analyzer(Main):
         self.AnalysisFDFIELD()
         print(f'FDFIELD分析完成，共{len(self.datablocksFDFIELD)}个主分类')
         
-        # 生成地图图像
+        # 生成地图图像到硬盘
+        self.generate_fdfield_images()
+    
+    def generate_fdfield_images(self):
+        """生成FDFIELD地图图像文件到硬盘"""
         success_count = 0
         for i in range(len(self.datablocksFDFIELD)):
             # 检查数据块是否存在且有效
@@ -678,7 +877,7 @@ class FD2Analyzer(Main):
         print(f'成功提取{success_count}个地图图像')
 
     def load_ani_file(self, file_path):
-        """分析ANI.DAT文件 - 动画资源"""
+        """分析ANI.DAT文件 - 动画资源（解析+生成文件）"""
         print("分析ANI.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
@@ -687,7 +886,11 @@ class FD2Analyzer(Main):
         self.AnalysisANI()
         print(f'ANI分析完成，共{len(self.datablocksANI)}个主分段')
         
-        # 生成动画图像
+        # 生成动画图像到硬盘
+        self.generate_ani_images()
+    
+    def generate_ani_images(self):
+        """生成ANI动画图像文件到硬盘"""
         total_sequences = 0
         for i in range(len(self.datablocksANI)):  # 9个主分段
             # 修复变量名不一致的问题

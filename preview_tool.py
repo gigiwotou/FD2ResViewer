@@ -29,8 +29,12 @@ class ImagePreviewTool:
         self.current_file = None
         self.current_file_type = None
         
-        # 图像数据缓存
+        # 图像数据缓存 - 用于存储已解析的图像
         self.image_cache = {}
+        # 数据块缓存 - 用于存储已解析的数据块信息
+        self.datablock_cache = {}
+        # 预览图像缓存 - 用于存储已生成的预览图像
+        self.preview_image_cache = {}
         
         # 存储最后预览的图像，防止被垃圾回收
         self.last_preview_image = None
@@ -167,8 +171,8 @@ class ImagePreviewTool:
             # 更新UI状态
             self.root.after(0, lambda: self._update_status("正在分析文件..."))
             
-            # 根据文件类型分析
-            if self.analyzer.analyze_file(self.current_file):
+            # 根据文件类型进行纯内存解析（不生成任何文件到硬盘）
+            if self.analyzer.parse_file_in_memory(self.current_file):
                 self.root.after(0, lambda: self._load_image_list())
             else:
                 self.root.after(0, lambda: messagebox.showerror("错误", "无法分析选定的文件"))
@@ -320,6 +324,12 @@ class ImagePreviewTool:
     def _generate_preview(self, img_id):
         """生成图像预览"""
         try:
+            # 检查缓存中是否已有预生成的图像
+            if img_id in self.preview_image_cache:
+                image = self.preview_image_cache[img_id]
+                self.root.after(0, lambda img=image: self._show_preview_image(img))
+                return
+
             # 解析图像ID
             parts = img_id.split('_')
             
@@ -337,6 +347,8 @@ class ImagePreviewTool:
                             self.colorpanel_class(1)
                         )
                         
+                        # 缓存生成的图像
+                        self.preview_image_cache[img_id] = image
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
             elif 'Dato' in img_id:
@@ -354,6 +366,8 @@ class ImagePreviewTool:
                             self.colorpanel_class(1)
                         )
                         
+                        # 缓存生成的图像
+                        self.preview_image_cache[img_id] = image
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
             elif 'BG' in img_id:
@@ -369,6 +383,8 @@ class ImagePreviewTool:
                             self.colorpanel_class(1)
                         )
                         
+                        # 缓存生成的图像
+                        self.preview_image_cache[img_id] = image
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
             elif 'TAI' in img_id:
@@ -384,6 +400,8 @@ class ImagePreviewTool:
                             self.colorpanel_class(1)
                         )
                         
+                        # 缓存生成的图像
+                        self.preview_image_cache[img_id] = image
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
             elif 'FDSHAP' in img_id:
@@ -402,6 +420,8 @@ class ImagePreviewTool:
                             self.colorpanel_class(1)
                         )
                         
+                        # 缓存生成的图像
+                        self.preview_image_cache[img_id] = image
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
             elif 'Figani' in img_id:
@@ -419,6 +439,8 @@ class ImagePreviewTool:
                             self.colorpanel_class(1)
                         )
                         
+                        # 缓存生成的图像
+                        self.preview_image_cache[img_id] = image
                         self.root.after(0, lambda img=image: self._show_preview_image(img))
             
             elif 'Main_' in img_id:
@@ -480,6 +502,13 @@ class ImagePreviewTool:
     
     def _generate_fdother_main_image(self, main_idx):
         """根据主索引生成FDOTHER图像"""
+        img_id = f"Main_{main_idx}"
+        # 检查缓存中是否已有预生成的图像
+        if img_id in self.preview_image_cache:
+            image = self.preview_image_cache[img_id]
+            self.root.after(0, lambda img=image: self._show_preview_image(img))
+            return
+
         try:
             datablock = self.analyzer.datablocksOTHER[main_idx]
             if not (datablock and datablock.length > 4):
@@ -550,12 +579,21 @@ class ImagePreviewTool:
                     self.colorpanel_class(1)
                 )
             
+            # 缓存生成的图像
+            self.preview_image_cache[img_id] = image
             self.root.after(0, lambda img=image: self._show_preview_image(img))
         except Exception as e:
             print(f"生成FDOTHER主图像时出错: {str(e)}")
     
     def _generate_fdother_sub_image(self, main_idx, sub_idx):
         """根据主索引和子索引生成FDOTHER子图像"""
+        img_id = f"Main_{main_idx}_Sub_{sub_idx}"
+        # 检查缓存中是否已有预生成的图像
+        if img_id in self.preview_image_cache:
+            image = self.preview_image_cache[img_id]
+            self.root.after(0, lambda img=image: self._show_preview_image(img))
+            return
+
         try:
             # 重新分析主索引以确保子数据块已加载
             self.analyzer.AnalysisOtherSubs(main_idx)
@@ -1170,6 +1208,8 @@ class ImagePreviewTool:
                                 # 如果还是出现索引错误，创建一个空白图像
                                 image = Image.new('RGB', (24, 24), (255, 255, 255))
                     
+                    # 缓存生成的图像
+                    self.preview_image_cache[img_id] = image
                     self.root.after(0, lambda img=image: self._show_preview_image(img))
         except Exception as e:
             print(f"生成FDOTHER子图像时出错: {str(e)}")
