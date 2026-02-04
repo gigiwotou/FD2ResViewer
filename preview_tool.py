@@ -249,7 +249,7 @@ class ImagePreviewTool:
     def _get_fdicon_images(self):
         """获取FDICON.B24中的图像信息"""
         images = []
-        for i in range(min(100, len(self.analyzer.datablocksICON))):  # 只显示前100个
+        for i in range(len(self.analyzer.datablocksICON)):  # 显示所有
             datablock = self.analyzer.datablocksICON[i]
             if datablock and datablock.length > 4:
                 images.append((f"Icon_{i:05d}", "Icon", "24x24", "Palette"))
@@ -258,7 +258,7 @@ class ImagePreviewTool:
     def _get_dato_images(self):
         """获取DATO.DAT中的图像信息"""
         images = []
-        for i in range(min(50, len(self.analyzer.datablocksDATO))):  # 只显示前50个主分类
+        for i in range(len(self.analyzer.datablocksDATO)):  # 显示所有主分类
             for j in range(min(4, len(self.analyzer.datablocksDATO[i]))):  # 每个主分类最多4个子分类
                 datablock = self.analyzer.datablocksDATO[i][j]
                 if datablock and datablock.length > 4:
@@ -268,7 +268,7 @@ class ImagePreviewTool:
     def _get_bg_images(self):
         """获取BG.DAT中的图像信息"""
         images = []
-        for i in range(min(50, len(self.analyzer.datablocksBG))):  # 只显示前50个
+        for i in range(len(self.analyzer.datablocksBG)):  # 显示所有
             datablock = self.analyzer.datablocksBG[i]
             if datablock and datablock.length > 4:
                 images.append((f"BG_{i:05d}", "Background", "Variable", "BG"))
@@ -277,7 +277,7 @@ class ImagePreviewTool:
     def _get_tai_images(self):
         """获取TAI.DAT中的图像信息"""
         images = []
-        for i in range(min(50, len(self.analyzer.datablocksTAI))):  # 只显示前50个
+        for i in range(len(self.analyzer.datablocksTAI)):  # 显示所有
             datablock = self.analyzer.datablocksTAI[i]
             if datablock and datablock.length > 4:
                 images.append((f"TAI_{i:05d}", "Action", "Variable", "TAI"))
@@ -286,7 +286,7 @@ class ImagePreviewTool:
     def _get_figani_images(self):
         """获取FIGANI.DAT中的图像信息"""
         images = []
-        for i in range(min(50, len(self.analyzer.datablocksFIGANI))):  # 只显示前50个主分类
+        for i in range(len(self.analyzer.datablocksFIGANI)):  # 显示所有主分类
             sub_count = self.analyzer.subBlockCountsFIGANI[i] if i < len(self.analyzer.subBlockCountsFIGANI) else 0
             for j in range(min(10, sub_count)):  # 每个主分类最多10个子分类
                 if i < len(self.analyzer.datablocksFIGANI) and j < len(self.analyzer.datablocksFIGANI[i]):
@@ -298,9 +298,9 @@ class ImagePreviewTool:
     def _get_fdshap_images(self):
         """获取FDSHAP.DAT中的图像信息"""
         images = []
-        for i in range(min(20, len(self.analyzer.datablocksFDSHAP))):  # 只显示前20个主分类
+        for i in range(len(self.analyzer.datablocksFDSHAP)):  # 显示所有主分类
             sub_count = self.analyzer.subBlockCountsFDSHAP[i] if i < len(self.analyzer.subBlockCountsFDSHAP) else 0
-            for j in range(min(50, sub_count)):  # 每个主分类最多50个子分类
+            for j in range(sub_count):  # 显示所有子分类
                 if i < len(self.analyzer.datablocksFDSHAP) and j < len(self.analyzer.datablocksFDSHAP[i]):
                     datablock = self.analyzer.datablocksFDSHAP[i][j]
                     if datablock and datablock.length > 4:
@@ -529,7 +529,7 @@ class ImagePreviewTool:
                     sWidth = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset:datablock.startOffset+2])[0]
                     sHeight = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset+2:datablock.startOffset+4])[0]
                     image = self.analyzer.bmp_maker.makeShapBMP(
-                        max(1, min(sWidth, 100)), max(1, min(sHeight, 100)),
+                        max(1, sWidth), max(1, sHeight),
                         self.analyzer.fileDatas,
                         datablock.startOffset + 4,
                         datablock.length - 4,
@@ -550,7 +550,7 @@ class ImagePreviewTool:
                     sWidth = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset:datablock.startOffset+2])[0]
                     sHeight = struct.unpack('<h', self.analyzer.fileDatas[datablock.startOffset+2:datablock.startOffset+4])[0]
                     image = self.analyzer.bmp_maker.makeBMP(
-                        max(1, min(sWidth, 100)), max(1, min(sHeight, 100)),
+                        max(1, sWidth), max(1, sHeight),
                         self.analyzer.fileDatas,
                         datablock.startOffset + 4,
                         datablock.length - 4,
@@ -674,7 +674,7 @@ class ImagePreviewTool:
                             # 如果出现索引错误，尝试使用较小的尺寸或默认尺寸
                             try:
                                 image = self.analyzer.bmp_maker.makeBMP(
-                                    min(sWidth, 100), min(sHeight, 100),
+                                    sWidth, sHeight,
                                     self.analyzer.fileDatas,
                                     data_offset,
                                     datablock_sub.length - 4,
@@ -720,7 +720,7 @@ class ImagePreviewTool:
                                 # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
                                     image = self.analyzer.bmp_maker.makeBMP(
-                                        min(sWidth, 100), min(sHeight, 100),
+                                        sWidth, sHeight,
                                         self.analyzer.fileDatas,
                                         data_offset,
                                         datablock_sub.length - 4,
@@ -760,7 +760,7 @@ class ImagePreviewTool:
                                 # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
                                     image = self.analyzer.bmp_maker.makeBMP(
-                                        min(sWidth, 100), min(sHeight, 100),
+                                        sWidth, sHeight,
                                         self.analyzer.fileDatas,
                                         data_offset,
                                         datablock_sub.length - 4,
@@ -806,7 +806,7 @@ class ImagePreviewTool:
                                 # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
                                     image = self.analyzer.bmp_maker.makeBMP(
-                                        min(sWidth, 100), min(sHeight, 100),
+                                        sWidth, sHeight,
                                         self.analyzer.fileDatas,
                                         data_offset,
                                         datablock_sub.length - 4,
@@ -997,7 +997,7 @@ class ImagePreviewTool:
                                 # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
                                     image = self.analyzer.bmp_maker.makeBMP(
-                                        min(sWidth, 100), min(sHeight, 100),
+                                        sWidth, sHeight,
                                         self.analyzer.fileDatas,
                                         data_offset,
                                         datablock_sub.length - 4,
@@ -1070,7 +1070,7 @@ class ImagePreviewTool:
                                 # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
                                     image = self.analyzer.bmp_maker.makeBMP(
-                                        min(sWidth, 100), min(sHeight, 100),
+                                        sWidth, sHeight,
                                         self.analyzer.fileDatas,
                                         data_offset,
                                         datablock_sub.length - 4,
@@ -1143,7 +1143,7 @@ class ImagePreviewTool:
                                 # 如果出现索引错误，尝试使用较小的尺寸
                                 try:
                                     image = self.analyzer.bmp_maker.makeBMP(
-                                        min(sWidth, 100), min(sHeight, 100),
+                                        sWidth, sHeight,
                                         self.analyzer.fileDatas,
                                         data_offset,
                                         datablock_sub.length - 4,
