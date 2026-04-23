@@ -342,10 +342,9 @@ class FD2Analyzer(Main):
         print("解析ANI.DAT文件到内存...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
-        
-        # 使用AnalysisANI进行文件分析
+
         self.AnalysisANI()
-        print(f'ANI内存解析完成，共{len(self.datablocksANI)}个主分段')
+        print(f'ANI内存解析完成，找到 {len(self.ani_parser.afm_offsets)} 个AFM动画')
 
     def extract_text_content(self, main_index):
         """提取指定主索引的文本内容"""
@@ -881,65 +880,45 @@ class FD2Analyzer(Main):
         print("分析ANI.DAT文件...")
         with open(file_path, 'rb') as f:
             self.fileDatas = f.read()
-        
-        # 使用AnalysisANI进行文件分析
+
         self.AnalysisANI()
-        print(f'ANI分析完成，共{len(self.datablocksANI)}个主分段')
-        
-        # 生成动画图像到硬盘
+        print(f'ANI分析完成，找到 {len(self.ani_parser.afm_offsets)} 个AFM动画')
+
         self.generate_ani_images()
-    
+
     def generate_ani_images(self):
         """生成ANI动画图像文件到硬盘"""
-        total_sequences = 0
-        for i in range(len(self.datablocksANI)):  # 9个主分段
-            # 修复变量名不一致的问题
-            if i < len(self.subBlockCountsANI):
-                sub_block_count = self.subBlockCountsANI[i]
-            else:
-                sub_block_count = 0
-                
-            if sub_block_count > 0:
-                print(f'处理动画分段{i:02d}，包含{sub_block_count}个子段')
-                ani_dir = os.path.join(self.output_dir, f'ani_segment_{i:02d}')
+        if not hasattr(self.ani_parser, 'afm_offsets') or not self.ani_parser.afm_offsets:
+            print("没有找到有效的ANI动画")
+            return
+
+        results = self.ani_parser.decode_all_afm()
+
+        for afm_idx, frames in results.items():
+            if frames:
+                ani_dir = os.path.join(self.output_dir, f'afm_{afm_idx}')
                 os.makedirs(ani_dir, exist_ok=True)
-                
-                success_count = 0
-                for j in range(sub_block_count):
-                    # 检查数据块是否存在且有效
-                    if i < len(self.datablocksANI) and j < len(self.datablocksANI[i]):
-                        data_block = self.datablocksANI[i][j]
-                        if data_block is not None and isinstance(data_block, DataBlock) and hasattr(data_block, 'length') and data_block.length is not None and data_block.length > 4:
-                            try:
-                                # 使用新的ANI专用方法生成图像
-                                # 传递整个数据块给方法，它会从正确位置读取宽度、高度和数据
-                                image = self.bmp_maker.makeANIBMP(
-                                    self.fileDatas,
-                                    data_block.startOffset,  # 从数据块开始位置
-                                    data_block.length,     # 整个数据块长度
-                                    ColorPanel(1)
-                                )
-                                
-                                image_path = os.path.join(ani_dir, f'frame_{j:03d}.png')
-                                image.save(image_path)
-                                success_count += 1
-                                
-                                # 获取图像尺寸用于显示
-                                width, height = image.size
-                                print(f'  ANI动画分段{i:02d}帧{j:03d}处理成功: {width}x{height}')
-                            except Exception as e:
-                                print(f'ANI动画分段{i:02d}帧{j:03d}处理失败: {e}')
-                                # 尝试更安全的方式，仅保存原始数据到临时文件
-                                try:
-                                    # 保存原始数据块以便分析
-                                    raw_data_path = os.path.join(ani_dir, f'raw_frame_{j:03d}.bin')
-                                    with open(raw_data_path, 'wb') as raw_file:
-                                        raw_file.write(self.fileDatas[data_block.startOffset:data_block.startOffset+data_block.length])
-                                except:
-                                    pass  # 忽略保存原始数据的错误
-                print(f'  动画分段{i:02d}: 成功提取{success_count}帧')
-                total_sequences += 1
-        print(f'成功处理{total_sequences}个ANI动画分段')
+
+                print(f'AFM {afm_idx}: {len(frames)} 帧')
+
+                for frame_idx, frame in enumerate(frames):
+                    image_path = os.path.join(ani_dir, f'frame_{frame_idx:03d}.png')
+                    frame.save(image_path)
+
+                gif_path = os.path.join(self.output_dir, f'afm_{afm_idx}.gif')
+                if len(frames) > 1:
+                    frames[0].save(
+                        gif_path,
+                        save_all=True,
+                        append_images=frames[1:],
+                        duration=100,
+                        loop=0
+                    )
+                    print(f'  保存GIF: {gif_path}')
+                else:
+                    frames[0].save(gif_path.replace('.gif', '.png'))
+
+        print(f'成功处理 {len(results)} 个ANI动画')
 
 def main():
 
