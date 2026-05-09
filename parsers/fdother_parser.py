@@ -238,7 +238,7 @@ class FdOtherParser(BaseParser):
                 datablock.length,
                 ColorPanel(1)  # 使用灰色调色板
             )
-            image_path = os.path.join(self.main.output_dir, f'face_{subIndex}.png')
+            image_path = os.path.join(self.main.output_dir, f'{subIndex}_face.png')
             image.save(image_path)
 
         elif subIndex in (11, 16, 17, 46, 47, 56, 59, 60, 61, 62, 69, 70, 71, 72, 73, 74, 75, 97, 98, 100):
@@ -263,7 +263,7 @@ class FdOtherParser(BaseParser):
                 datablock.length - 4,
                 colorpanel
             )
-            image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}.png')
+            image_path = os.path.join(self.main.output_dir, f'{subIndex}_shap.png')
             image.save(image_path)
         elif subIndex == 55:
             # 添加None检查
@@ -281,7 +281,7 @@ class FdOtherParser(BaseParser):
                 datablock.length - 4,
                 ColorPanel(1)
             )
-            image_path = os.path.join(self.main.output_dir, f'other_{subIndex}.png')
+            image_path = os.path.join(self.main.output_dir, f'{subIndex}_other.png')
             image.save(image_path)
         elif subIndex == 79:
             # 添加None检查
@@ -359,7 +359,7 @@ class FdOtherParser(BaseParser):
                         datablockSub.length,
                         ColorPanel(1)
                     )
-                    image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                    image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                     image.save(image_path)
  
                 if num3 == 2:
@@ -388,7 +388,7 @@ class FdOtherParser(BaseParser):
                         datablockSub.length - 4,
                         ColorPanel(1)
                     )
-                    image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                    image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                     image.save(image_path)
                     
 
@@ -408,7 +408,7 @@ class FdOtherParser(BaseParser):
                         data_offset,
                         datablockSub.length
                     )
-                    image_path = os.path.join(self.main.output_dir, f'font_{subIndex}_{num2:03d}.png')
+                    image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_font.png')
                     image.save(image_path)
                    
                 if num3 == 5:
@@ -431,14 +431,14 @@ class FdOtherParser(BaseParser):
                     if num2 < 20:
                         data_offset = start_offset + 4
                         # 生成其他类型图像                    
-                        image = self.bmp_maker.makeBMP(
+                        image = self.bmp_maker.makeMP(
                             sWidth, sHeight,
                             self.main.fileDatas,
                             data_offset,
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                         image.save(image_path)
                     elif num2 < 23:
                         data_offset = start_offset
@@ -452,7 +452,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'face_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_face.png')
                         image.save(image_path)
                     elif num2 < 31:
                         data_offset = start_offset + 4
@@ -464,7 +464,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                         image.save(image_path)
                     elif num2 < 53:
                         image = self.bmp_maker.makeShapBMP(
@@ -474,7 +474,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                         image.save(image_path)
                     elif num2 < 64 and num2 != 59:
                         data_offset = start_offset + 4
@@ -486,7 +486,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                         image.save(image_path)
                     elif num2 != 59:
                         if num2 < 119 and num2 != 93:
@@ -501,7 +501,7 @@ class FdOtherParser(BaseParser):
                                 datablockSub.length,
                                 ColorPanel(1)
                             )
-                            image_path = os.path.join(self.main.output_dir, f'face_{subIndex}_{num2:03d}.png')
+                            image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_face.png')
                             image.save(image_path)
                         else:
                             image = self.bmp_maker.makeShapBMP(
@@ -511,7 +511,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                             )
-                            image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                            image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                             image.save(image_path)
 
                 if num3 == 7:
@@ -539,7 +539,7 @@ class FdOtherParser(BaseParser):
                         datablockSub.length - 4,
                         color_panel
                     )
-                    image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                    image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                     image.save(image_path)
 
                 if num3 in (6, 9):
@@ -568,7 +568,7 @@ class FdOtherParser(BaseParser):
                         datablockSub.length,
                         ColorPanel(1)
                     )
-                    image_path = os.path.join(self.main.output_dir, f'face_{subIndex}_{num2:03d}.png')
+                    image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_face.png')
                     image.save(image_path)
                    
 
@@ -598,7 +598,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                         image.save(image_path)
                     elif num2 == 1 or num2 == 2 or (num2 >= 11 and num2 < 22):
                         data_offset = start_offset
@@ -612,7 +612,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'face_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_face.png')
                         image.save(image_path)
                     else:
                         data_offset = start_offset + 4
@@ -624,7 +624,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                         image.save(image_path)
                     
 
@@ -654,7 +654,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                         image.save(image_path)
                     elif num2 == 1 or num2 == 2 or num2 >= 11:
                         data_offset = start_offset
@@ -668,7 +668,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'face_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_face.png')
                         image.save(image_path)
                     else:
                         data_offset = start_offset + 4
@@ -680,7 +680,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                         image.save(image_path)
                     
 
@@ -710,7 +710,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'shap_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_shap.png')
                         image.save(image_path)
                     elif num2 == 1 or num2 == 2 or (num2 >= 11 and num2 < 23):
                         data_offset = start_offset
@@ -724,7 +724,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'face_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_face.png')
                         image.save(image_path)
                     else:
                         data_offset = start_offset + 4
@@ -736,7 +736,7 @@ class FdOtherParser(BaseParser):
                             datablockSub.length - 4,
                             ColorPanel(1)
                         )
-                        image_path = os.path.join(self.main.output_dir, f'other_{subIndex}_{num2:03d}.png')
+                        image_path = os.path.join(self.main.output_dir, f'{subIndex}_{num2:03d}_other.png')
                         image.save(image_path)
 
                 # if num3 == 79:

@@ -24,6 +24,7 @@ output_*/
 *.dat
 *.B24
 *.b24
+/data/
 
 # C# 代码和相关文件
 resviewer_src/
